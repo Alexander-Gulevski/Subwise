@@ -66,6 +66,11 @@ jobs:
       - name: Проверка схемы Prisma
         run: npx prisma validate
 
+      # Интеграционные тесты работают на настоящей PostgreSQL.
+      # DATABASE_URL задан в env job'а и перекрывает .env.test.
+      - name: Миграции на тестовой базе
+        run: npx prisma migrate deploy
+
       - name: Типы
         run: npm run typecheck
 

@@ -23,7 +23,8 @@
     "db:deploy": "prisma migrate deploy",
     "db:seed": "tsx prisma/seed/index.ts",
     "db:studio": "prisma studio",
-    "db:reset": "prisma migrate reset"
+    "db:reset": "prisma migrate reset",
+    "db:setup-test": "scripts\\setup-test-db.cmd"
   },
   "prisma": {
     "seed": "tsx prisma/seed/index.ts"
