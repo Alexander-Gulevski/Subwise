@@ -12,7 +12,10 @@ import {
   type CurrencyCode,
 } from '@/domain/money';
 import { getDictionary } from '@/locales';
-import { createSubscriptionAction } from '@/server/actions/subscriptions';
+import {
+  createSubscriptionAction,
+  updateSubscriptionAction,
+} from '@/server/actions/subscriptions';
 
 const t = getDictionary('ru');
 
@@ -20,6 +23,22 @@ export type CategoryOption = {
   id: string;
   slug: string;
   name: string;
+};
+
+/** Значения для режима правки. Даты — в формате поля input[type=date] */
+export type SubscriptionFormValues = {
+  id: string;
+  customName: string;
+  amount: string;
+  currency: CurrencyCode;
+  period: string;
+  periodDays: string;
+  firstBillingAt: string;
+  categoryId: string;
+  isTrial: boolean;
+  trialEndsAt: string;
+  paymentLabel: string;
+  note: string;
 };
 
 const PERIODS = [
@@ -34,20 +53,30 @@ const PERIODS = [
 const inputClass =
   'min-h-tap w-full rounded-control border border-border bg-surface px-3 text-base';
 
-export function SubscriptionForm({ categories }: { categories: CategoryOption[] }) {
+export function SubscriptionForm({
+  categories,
+  initial,
+}: {
+  categories: CategoryOption[];
+  /** Задан — форма правит существующую подписку, иначе создаёт новую */
+  initial?: SubscriptionFormValues;
+}) {
   const router = useRouter();
+  const isEdit = Boolean(initial);
 
-  const [name, setName] = useState('');
-  const [amount, setAmount] = useState('');
-  const [currency, setCurrency] = useState<CurrencyCode>('RUB');
-  const [period, setPeriod] = useState<string>('monthly');
-  const [periodDays, setPeriodDays] = useState('');
-  const [firstBillingAt, setFirstBillingAt] = useState(defaultBillingDate());
-  const [categoryId, setCategoryId] = useState('');
-  const [isTrial, setIsTrial] = useState(false);
-  const [trialEndsAt, setTrialEndsAt] = useState('');
-  const [paymentLabel, setPaymentLabel] = useState('');
-  const [note, setNote] = useState('');
+  const [name, setName] = useState(initial?.customName ?? '');
+  const [amount, setAmount] = useState(initial?.amount ?? '');
+  const [currency, setCurrency] = useState<CurrencyCode>(initial?.currency ?? 'RUB');
+  const [period, setPeriod] = useState<string>(initial?.period ?? 'monthly');
+  const [periodDays, setPeriodDays] = useState(initial?.periodDays ?? '');
+  const [firstBillingAt, setFirstBillingAt] = useState(
+    initial?.firstBillingAt ?? defaultBillingDate(),
+  );
+  const [categoryId, setCategoryId] = useState(initial?.categoryId ?? '');
+  const [isTrial, setIsTrial] = useState(initial?.isTrial ?? false);
+  const [trialEndsAt, setTrialEndsAt] = useState(initial?.trialEndsAt ?? '');
+  const [paymentLabel, setPaymentLabel] = useState(initial?.paymentLabel ?? '');
+  const [note, setNote] = useState(initial?.note ?? '');
 
   const [pending, setPending] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
@@ -69,7 +98,7 @@ export function SubscriptionForm({ categories }: { categories: CategoryOption[] 
       return;
     }
 
-    const result = await createSubscriptionAction({
+    const payload = {
       customName: name,
       categoryId: categoryId || null,
       amountMinor,
@@ -77,11 +106,14 @@ export function SubscriptionForm({ categories }: { categories: CategoryOption[] 
       period,
       periodDays: period === 'custom' ? Number(periodDays) || null : null,
       firstBillingAt,
-      isTrial,
       trialEndsAt: isTrial ? trialEndsAt || null : null,
       paymentLabel: paymentLabel || null,
       note: note || null,
-    });
+    };
+
+    const result = initial
+      ? await updateSubscriptionAction({ ...payload, id: initial.id })
+      : await createSubscriptionAction({ ...payload, isTrial });
 
     if (result.ok) {
       router.push('/app');
@@ -180,6 +212,11 @@ export function SubscriptionForm({ categories }: { categories: CategoryOption[] 
           label={isTrial ? 'Первое платное списание' : 'Следующее списание'}
           htmlFor="firstBillingAt"
           error={fieldErrors['firstBillingAt']}
+          hint={
+            isEdit
+              ? 'Изменение даты сдвинет всё расписание списаний'
+              : undefined
+          }
         >
           <input
             id="firstBillingAt"
@@ -208,23 +245,48 @@ export function SubscriptionForm({ categories }: { categories: CategoryOption[] 
         </Field>
       </Card>
 
-      <Card className="flex flex-col gap-4">
-        <label className="flex min-h-tap cursor-pointer items-center gap-3">
-          <input
-            type="checkbox"
-            checked={isTrial}
-            onChange={(event) => setIsTrial(event.target.checked)}
-            className="h-5 w-5 accent-accent"
-          />
-          <span>
-            <span className="font-medium">Сейчас идёт триал</span>
-            <span className="block text-sm text-muted">
-              Напомним заранее, чтобы списание не стало сюрпризом
+      {/*
+        Переключатель триала показывается только при создании: перевод
+        подписки из триала в платную выполняет фоновая задача по дате,
+        а не пользователь (docs/03, диаграмма состояний)
+      */}
+      {!isEdit ? (
+        <Card className="flex flex-col gap-4">
+          <label className="flex min-h-tap cursor-pointer items-center gap-3">
+            <input
+              type="checkbox"
+              checked={isTrial}
+              onChange={(event) => setIsTrial(event.target.checked)}
+              className="h-5 w-5 accent-accent"
+            />
+            <span>
+              <span className="font-medium">Сейчас идёт триал</span>
+              <span className="block text-sm text-muted">
+                Напомним заранее, чтобы списание не стало сюрпризом
+              </span>
             </span>
-          </span>
-        </label>
+          </label>
 
-        {isTrial ? (
+          {isTrial ? (
+            <Field
+              label="Когда заканчивается триал"
+              htmlFor="trialEndsAt"
+              error={fieldErrors['trialEndsAt']}
+            >
+              <input
+                id="trialEndsAt"
+                type="date"
+                value={trialEndsAt}
+                onChange={(event) => setTrialEndsAt(event.target.value)}
+                className={inputClass}
+              />
+            </Field>
+          ) : null}
+        </Card>
+      ) : null}
+
+      {isEdit && isTrial ? (
+        <Card>
           <Field
             label="Когда заканчивается триал"
             htmlFor="trialEndsAt"
@@ -238,15 +300,19 @@ export function SubscriptionForm({ categories }: { categories: CategoryOption[] 
               className={inputClass}
             />
           </Field>
-        ) : null}
-      </Card>
+        </Card>
+      ) : null}
 
       <details className="rounded-card border border-border bg-surface">
         <summary className="flex min-h-tap cursor-pointer items-center px-4 text-sm text-muted">
           Необязательное
         </summary>
         <div className="flex flex-col gap-4 px-4 pb-4">
-          <Field label="Чем платишь" htmlFor="paymentLabel">
+          <Field
+            label="Чем платишь"
+            htmlFor="paymentLabel"
+            hint="Просто пометка для себя. Номер карты вводить не нужно"
+          >
             <input
               id="paymentLabel"
               value={paymentLabel}
@@ -255,10 +321,6 @@ export function SubscriptionForm({ categories }: { categories: CategoryOption[] 
               maxLength={60}
               className={inputClass}
             />
-            {/* Номера карт мы не храним — только метку (docs/06, раздел 8) */}
-            <p className="mt-1 text-xs text-muted">
-              Просто пометка для себя. Номер карты вводить не нужно
-            </p>
           </Field>
 
           <Field label="Заметка" htmlFor="note" error={fieldErrors['note']}>
@@ -296,11 +358,13 @@ function Field({
   label,
   htmlFor,
   error,
+  hint,
   children,
 }: {
   label: string;
   htmlFor: string;
   error?: string;
+  hint?: string;
   children: React.ReactNode;
 }) {
   return (
@@ -309,6 +373,7 @@ function Field({
         {label}
       </label>
       {children}
+      {hint ? <p className="text-xs text-muted">{hint}</p> : null}
       {error ? (
         <p role="alert" className="text-sm text-danger">
           {error}

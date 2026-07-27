@@ -157,6 +157,126 @@ describe('ИЗОЛЯЦИЯ ДАННЫХ', () => {
   });
 });
 
+describe('изменение', () => {
+  it('меняет сумму, не трогая расписание', async () => {
+    const user = await createTestUser();
+    const created = await subscriptionService.create(user.id, baseInput);
+
+    const updated = await subscriptionService.update(user.id, created.id, {
+      amountMinor: 49_900,
+    });
+
+    expect(updated.amountMinor).toBe(49_900);
+    expect(updated.billingAnchorAt.toISOString()).toBe(
+      created.billingAnchorAt.toISOString(),
+    );
+
+    // Прогнозы фиксируют цену на момент события — она должна обновиться
+    const events = await db.billingEvent.findMany({
+      where: { subscriptionId: created.id, status: 'scheduled' },
+    });
+    expect(events.every((event) => event.amountMinor === 49_900)).toBe(true);
+  });
+
+  it('правка даты сдвигает якорь — это единственный такой случай', async () => {
+    const user = await createTestUser();
+    const created = await subscriptionService.create(user.id, baseInput);
+
+    const updated = await subscriptionService.update(user.id, created.id, {
+      firstBillingAt: utcDate('2026-09-15'),
+    });
+
+    expect(updated.billingAnchorAt.toISOString()).toBe('2026-09-15T00:00:00.000Z');
+
+    const events = await db.billingEvent.findMany({
+      where: { subscriptionId: created.id, status: 'scheduled' },
+      orderBy: { dueAt: 'asc' },
+      take: 3,
+    });
+
+    expect(events.map((e) => e.dueAt.toISOString().slice(0, 10))).toEqual([
+      '2026-09-15',
+      '2026-10-15',
+      '2026-11-15',
+    ]);
+  });
+
+  it('смена периода пересчитывает расписание от того же якоря', async () => {
+    const user = await createTestUser();
+    const created = await subscriptionService.create(user.id, baseInput);
+
+    await subscriptionService.update(user.id, created.id, { period: 'yearly' });
+
+    const events = await db.billingEvent.findMany({
+      where: { subscriptionId: created.id, status: 'scheduled' },
+      orderBy: { dueAt: 'asc' },
+    });
+
+    // Годовой период в горизонте 12 месяцев даёт одно событие
+    expect(events).toHaveLength(1);
+    expect(events[0]?.dueAt.toISOString().slice(0, 10)).toBe('2026-08-31');
+  });
+
+  it('поля, которых нет во входных данных, не затираются', async () => {
+    const user = await createTestUser();
+    const created = await subscriptionService.create(user.id, {
+      ...baseInput,
+      note: 'важная заметка',
+      paymentLabel: 'Тинькофф •4321',
+    });
+
+    await subscriptionService.update(user.id, created.id, { amountMinor: 50_000 });
+
+    const after = await subscriptionService.get(user.id, created.id);
+    expect(after.note).toBe('важная заметка');
+    expect(after.paymentLabel).toBe('Тинькофф •4321');
+  });
+
+  it('явный null очищает поле', async () => {
+    const user = await createTestUser();
+    const created = await subscriptionService.create(user.id, {
+      ...baseInput,
+      note: 'больше не нужна',
+    });
+
+    await subscriptionService.update(user.id, created.id, { note: null });
+
+    const after = await subscriptionService.get(user.id, created.id);
+    expect(after.note).toBeNull();
+  });
+
+  it('некорректный период отклоняется до записи', async () => {
+    const user = await createTestUser();
+    const created = await subscriptionService.create(user.id, baseInput);
+
+    await expect(
+      subscriptionService.update(user.id, created.id, {
+        period: 'custom',
+        periodDays: null,
+      }),
+    ).rejects.toThrow(/periodDays/);
+
+    // Подписка не пострадала
+    const after = await subscriptionService.get(user.id, created.id);
+    expect(after.period).toBe('monthly');
+  });
+
+  it('ИЗОЛЯЦИЯ: чужую подписку нельзя изменить', async () => {
+    const owner = await createTestUser();
+    const stranger = await createTestUser();
+    const subscription = await subscriptionService.create(owner.id, baseInput);
+
+    await expect(
+      subscriptionService.update(stranger.id, subscription.id, {
+        amountMinor: 1,
+      }),
+    ).rejects.toThrow(/не найден/i);
+
+    const unchanged = await subscriptionService.get(owner.id, subscription.id);
+    expect(unchanged.amountMinor).toBe(39_900);
+  });
+});
+
 describe('пауза и возобновление', () => {
   it('пауза убирает дату следующего списания и гасит прогнозы', async () => {
     const user = await createTestUser();

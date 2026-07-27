@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
 import { cleanupUser, disconnect, loginViaUi, uniqueEmail } from './helpers';
 
 /**
@@ -156,4 +156,168 @@ test.describe('добавление подписки', () => {
       await cleanupUser(email);
     }
   });
+});
+
+test.describe('редактирование карточки', () => {
+  /** Заводит одну подписку и оставляет страницу на дашборде */
+  async function seedOne(
+    page: Page,
+    email: string,
+    name = 'Кинопоиск',
+    amount = '399',
+  ) {
+    await loginViaUi(page, email);
+    await page.goto('/app/subscriptions/new');
+    await page.getByLabel('Сервис').fill(name);
+    await page.getByLabel('Сумма').fill(amount);
+    await page.getByLabel('Следующее списание').fill('2026-08-31');
+    await page.getByRole('button', { name: 'Сохранить' }).click();
+    await page.waitForURL(/\/app$/);
+  }
+
+  test('клик по строке открывает карточку с заполненными полями', async ({
+    page,
+  }) => {
+    const email = uniqueEmail('open-card');
+
+    try {
+      await seedOne(page, email);
+
+      await page.getByRole('link', { name: /Кинопоиск, открыть карточку/ }).click();
+      await expect(page).toHaveURL(/\/app\/subscriptions\/[^/]+$/);
+
+      // Значения подставлены, а не пустые — иначе сохранение затрёт данные
+      await expect(page.getByLabel('Сервис')).toHaveValue('Кинопоиск');
+      await expect(page.getByLabel('Сумма')).toHaveValue('399');
+      await expect(page.getByLabel('Следующее списание')).toHaveValue('2026-08-31');
+    } finally {
+      await cleanupUser(email);
+    }
+  });
+
+  test('изменение суммы пересчитывает итоги', async ({ page }) => {
+    const email = uniqueEmail('edit-amount');
+
+    try {
+      await seedOne(page, email);
+      await page.getByRole('link', { name: /Кинопоиск, открыть карточку/ }).click();
+
+      await page.getByLabel('Сумма').fill('599');
+      await page.getByRole('button', { name: 'Сохранить' }).click();
+
+      await page.waitForURL(/\/app$/);
+      await expect(page.getByText(/599\s*₽/).first()).toBeVisible();
+      // 599 × 12 = 7188
+      await expect(page.getByText(/7\s*188\s*₽/).first()).toBeVisible();
+    } finally {
+      await cleanupUser(email);
+    }
+  });
+
+  test('переименование видно на дашборде', async ({ page }) => {
+    const email = uniqueEmail('edit-name');
+
+    try {
+      await seedOne(page, email);
+      await page.getByRole('link', { name: /Кинопоиск, открыть карточку/ }).click();
+
+      await page.getByLabel('Сервис').fill('Кинопоиск HD');
+      await page.getByRole('button', { name: 'Сохранить' }).click();
+
+      await page.waitForURL(/\/app$/);
+      await expect(page.getByText('Кинопоиск HD')).toBeVisible();
+    } finally {
+      await cleanupUser(email);
+    }
+  });
+
+  test('пауза убирает подписку из итогов, но не из списка', async ({ page }) => {
+    const email = uniqueEmail('pause');
+
+    try {
+      await seedOne(page, email);
+      await page.getByRole('link', { name: /Кинопоиск, открыть карточку/ }).click();
+
+      await page.getByRole('button', { name: 'Поставить на паузу' }).click();
+      await page.waitForURL(/\/app$/);
+
+      // «На паузе» есть и как заголовок раздела, и как статус в строке —
+      // берём первое совпадение
+      await expect(page.getByText('На паузе').first()).toBeVisible();
+      await expect(page.getByText('Кинопоиск')).toBeVisible();
+      // Итог обнулился: подписка на паузе не считается расходом
+      await expect(page.getByText(/^0\s*₽$/).first()).toBeVisible();
+    } finally {
+      await cleanupUser(email);
+    }
+  });
+
+  test('возобновление возвращает подписку в расходы', async ({ page }) => {
+    const email = uniqueEmail('resume');
+
+    try {
+      await seedOne(page, email);
+      await page.getByRole('link', { name: /Кинопоиск, открыть карточку/ }).click();
+      await page.getByRole('button', { name: 'Поставить на паузу' }).click();
+      await page.waitForURL(/\/app$/);
+
+      await page.getByRole('link', { name: /Кинопоиск, открыть карточку/ }).click();
+      await page.getByRole('button', { name: 'Возобновить' }).click();
+      await page.waitForURL(/\/app$/);
+
+      await expect(page.getByText(/399\s*₽/).first()).toBeVisible();
+    } finally {
+      await cleanupUser(email);
+    }
+  });
+
+  test('удаление требует подтверждения и честно предупреждает', async ({
+    page,
+  }) => {
+    const email = uniqueEmail('delete');
+
+    try {
+      await seedOne(page, email);
+      await page.getByRole('link', { name: /Кинопоиск, открыть карточку/ }).click();
+
+      await page.getByRole('button', { name: 'Удалить подписку' }).click();
+
+      // Пользователь должен понимать, что удаление из приложения
+      // не отменяет подписку у сервиса
+      await expect(page.getByText(/Деньги продолжат списываться/)).toBeVisible();
+
+      await page.getByRole('button', { name: 'Удалить', exact: true }).click();
+      await page.waitForURL(/\/app$/);
+
+      await expect(page.getByText('Пока пусто')).toBeVisible();
+    } finally {
+      await cleanupUser(email);
+    }
+  });
+
+  test('ИЗОЛЯЦИЯ: карточка чужой подписки отдаёт 404', async ({ page }) => {
+    const ownerEmail = uniqueEmail('owner');
+    const strangerEmail = uniqueEmail('stranger');
+
+    try {
+      await seedOne(page, ownerEmail);
+      const href = await page
+        .getByRole('link', { name: /Кинопоиск, открыть карточку/ })
+        .getAttribute('href');
+
+      // Выходим так же, как пользователь — кнопкой в настройках
+      await page.goto('/app/settings');
+      await page.getByRole('button', { name: 'Выйти' }).click();
+      await page.waitForURL(/localhost:\d+\/$/);
+
+      await loginViaUi(page, strangerEmail);
+
+      const response = await page.goto(href ?? '/app');
+      expect(response?.status()).toBe(404);
+    } finally {
+      await cleanupUser(ownerEmail);
+      await cleanupUser(strangerEmail);
+    }
+  });
+
 });

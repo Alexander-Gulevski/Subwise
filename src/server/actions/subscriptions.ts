@@ -88,6 +88,62 @@ export async function createSubscriptionAction(
   });
 }
 
+/**
+ * Изменяемые поля.
+ *
+ * Все необязательные: форма присылает только то, что реально меняет.
+ * Отсутствие ключа означает «не трогать», null — «очистить».
+ */
+const updateSchema = z
+  .object({
+    id: z.string().min(1),
+    customName: z
+      .string()
+      .trim()
+      .min(1, 'Введи название сервиса')
+      .max(120, 'Название длиннее 120 символов')
+      .optional(),
+    categoryId: z.string().min(1).nullish(),
+    amountMinor: z
+      .number({ invalid_type_error: 'Введи сумму' })
+      .int()
+      .positive('Сумма должна быть больше нуля')
+      .optional(),
+    currency: z
+      .enum(SUPPORTED_CURRENCIES as unknown as [string, ...string[]])
+      .optional(),
+    period: z
+      .enum(['weekly', 'monthly', 'quarterly', 'semiannual', 'yearly', 'custom'])
+      .optional(),
+    periodDays: z.number().int().positive().max(3650).nullish(),
+    firstBillingAt: z.coerce.date().optional(),
+    trialEndsAt: z.coerce.date().nullish(),
+    paymentLabel: z.string().trim().max(60).nullish(),
+    note: z.string().trim().max(500, 'Заметка длиннее 500 символов').nullish(),
+  })
+  .refine((data) => data.period !== 'custom' || data.periodDays, {
+    message: 'Укажи, через сколько дней списывают',
+    path: ['periodDays'],
+  });
+
+export async function updateSubscriptionAction(
+  input: unknown,
+): Promise<ActionResult<{ id: string }>> {
+  return runAction(async () => {
+    const { id, ...changes } = updateSchema.parse(input);
+    const user = await requireUser();
+
+    const result = await subscriptionService.update(user.id, id, {
+      ...changes,
+      currency: changes.currency as CurrencyCode | undefined,
+    });
+
+    revalidatePath('/app');
+    revalidatePath(`/app/subscriptions/${id}`);
+    return { id: result.id };
+  });
+}
+
 export async function pauseSubscriptionAction(
   input: unknown,
 ): Promise<ActionResult<{ id: string }>> {

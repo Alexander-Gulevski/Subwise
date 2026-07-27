@@ -135,14 +135,22 @@ export default async function DashboardPage() {
 
 function Row({ view }: { view: SubscriptionView }) {
   return (
-    <SubscriptionRow
-      name={view.displayName}
-      amount={view.amount}
-      amountInBase={view.amountInBase}
-      period={view.period}
-      status={view.status}
-      category={(view.categorySlug as CategorySlug) ?? 'other'}
-      daysUntilCharge={view.daysUntilCharge}
-    />
+    <Link
+      href={`/app/subscriptions/${view.id}`}
+      // Ссылка на всю строку: попасть в неё пальцем проще, чем
+      // в отдельную иконку (NFR-08)
+      className="rounded-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+      aria-label={`${view.displayName}, открыть карточку`}
+    >
+      <SubscriptionRow
+        name={view.displayName}
+        amount={view.amount}
+        amountInBase={view.amountInBase}
+        period={view.period}
+        status={view.status}
+        category={(view.categorySlug as CategorySlug) ?? 'other'}
+        daysUntilCharge={view.daysUntilCharge}
+      />
+    </Link>
   );
 }

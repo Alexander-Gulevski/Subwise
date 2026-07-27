@@ -48,6 +48,24 @@ export type CreateSubscriptionInput = {
   note?: string | null;
 };
 
+/**
+ * Изменяемые поля. Отсутствие ключа означает «не трогать»,
+ * а null — «очистить»: без этого различия нельзя было бы стереть
+ * заметку, не стирая заодно категорию.
+ */
+export type UpdateSubscriptionInput = {
+  customName?: string | null;
+  categoryId?: string | null;
+  amountMinor?: number;
+  currency?: CurrencyCode;
+  period?: BillingCycle['period'];
+  periodDays?: number | null;
+  firstBillingAt?: Date;
+  trialEndsAt?: Date | null;
+  paymentLabel?: string | null;
+  note?: string | null;
+};
+
 export const subscriptionService = {
   async create(
     userId: string,
@@ -99,6 +117,74 @@ export const subscriptionService = {
     });
 
     return created;
+  },
+
+  /**
+   * Изменение подписки — FR-01.
+   *
+   * Правка даты списания — ЕДИНСТВЕННЫЙ случай, когда сдвигается якорь
+   * расписания. Автоматический пересчёт после списания его не трогает,
+   * иначе подписка от 31 числа сползла бы на 28 (см. docs/03, раздел 5).
+   */
+  async update(
+    userId: string,
+    subscriptionId: string,
+    input: UpdateSubscriptionInput,
+  ): Promise<SubscriptionRecord> {
+    const current = await requireOwned(userId, subscriptionId);
+
+    const period = input.period ?? current.period;
+    const periodDays = input.periodDays ?? current.periodDays;
+
+    // Проверяем период до записи, как и при создании
+    chargesPerYear({ period, periodDays });
+
+    const anchorChanged =
+      input.firstBillingAt !== undefined &&
+      input.firstBillingAt.getTime() !== current.billingAnchorAt.getTime();
+
+    const scheduleChanged =
+      anchorChanged ||
+      (input.period !== undefined && input.period !== current.period) ||
+      (input.periodDays !== undefined && input.periodDays !== current.periodDays);
+
+    await subscriptionRepository.updateOwned(userId, subscriptionId, {
+      ...(input.customName !== undefined ? { customName: input.customName } : {}),
+      ...(input.categoryId !== undefined ? { categoryId: input.categoryId } : {}),
+      ...(input.amountMinor !== undefined ? { amountMinor: input.amountMinor } : {}),
+      ...(input.currency !== undefined ? { currency: input.currency } : {}),
+      ...(input.period !== undefined ? { period: input.period } : {}),
+      ...(input.periodDays !== undefined ? { periodDays: input.periodDays } : {}),
+      ...(input.paymentLabel !== undefined
+        ? { paymentLabel: input.paymentLabel }
+        : {}),
+      ...(input.note !== undefined ? { note: input.note } : {}),
+      ...(input.trialEndsAt !== undefined ? { trialEndsAt: input.trialEndsAt } : {}),
+      ...(anchorChanged
+        ? {
+            billingAnchorAt: input.firstBillingAt,
+            nextBillingAt: input.firstBillingAt,
+          }
+        : {}),
+    });
+
+    const updated = await requireOwned(userId, subscriptionId);
+
+    // Сумма тоже меняет расписание: прогнозы хранят цену на момент события
+    if (scheduleChanged || input.amountMinor !== undefined) {
+      await rebuildSchedule(updated);
+    }
+
+    await writeAudit({
+      userId,
+      action: 'subscription.updated',
+      entityType: 'Subscription',
+      entityId: subscriptionId,
+      before: { period: current.period, status: current.status },
+      after: { period: updated.period, status: updated.status },
+    });
+
+    return updated;
   },
 
   async pause(userId: string, subscriptionId: string): Promise<SubscriptionRecord> {
