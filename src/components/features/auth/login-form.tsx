@@ -95,7 +95,7 @@ export function LoginForm() {
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             placeholder={t.auth.emailPlaceholder}
-            className="min-h-tap rounded-xl border border-border bg-surface px-4 text-base"
+            className="min-h-tap rounded-control border border-border bg-surface px-4 text-base"
           />
           <Button type="submit" disabled={pending}>
             {pending ? t.common.loading : t.auth.sendCode}
@@ -118,7 +118,7 @@ export function LoginForm() {
             onChange={(e) => setCode(e.target.value.replace(/\D/g, ''))}
             placeholder={t.auth.codePlaceholder}
             aria-describedby="code-hint"
-            className="tabular min-h-tap rounded-xl border border-border bg-surface px-4 text-center text-2xl tracking-[0.4em]"
+            className="tabular min-h-tap rounded-control border border-border bg-surface px-4 text-center text-2xl tracking-[0.4em]"
           />
           <p id="code-hint" className="text-sm text-muted">
             {t.auth.codeHint}

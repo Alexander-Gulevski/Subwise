@@ -33,7 +33,7 @@ export default async function AppLayout({
                 <li key={item.href}>
                   <Link
                     href={item.href}
-                    className="inline-flex min-h-tap items-center rounded-lg px-3 text-sm text-muted hover:bg-surface hover:text-fg"
+                    className="inline-flex min-h-tap items-center rounded-control px-3 text-sm text-muted hover:bg-surface-raised hover:text-fg"
                   >
                     {item.label}
                   </Link>
