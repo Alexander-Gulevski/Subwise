@@ -1,0 +1,124 @@
+{
+  "root": true,
+  "extends": ["next/core-web-vitals", "plugin:@typescript-eslint/recommended"],
+  "parser": "@typescript-eslint/parser",
+  "plugins": ["@typescript-eslint", "boundaries"],
+  "settings": {
+    "boundaries/include": ["src/**/*"],
+    "boundaries/elements": [
+      { "type": "domain",     "pattern": "src/domain/*" },
+      { "type": "ports",      "pattern": "src/ports/*" },
+      { "type": "adapters",   "pattern": "src/adapters/*" },
+      { "type": "server",     "pattern": "src/server/*" },
+      { "type": "app",        "pattern": "src/app/*" },
+      { "type": "components", "pattern": "src/components/*" },
+      { "type": "lib",        "pattern": "src/lib/*" },
+      { "type": "locales",    "pattern": "src/locales/*" }
+    ]
+  },
+  "rules": {
+    "@typescript-eslint/no-explicit-any": "error",
+    "@typescript-eslint/no-unused-vars": [
+      "error",
+      { "argsIgnorePattern": "^_", "varsIgnorePattern": "^_" }
+    ],
+    "@typescript-eslint/consistent-type-imports": "warn",
+    "no-restricted-syntax": [
+      "error",
+      {
+        "selector": "CallExpression[callee.property.name='queryRawUnsafe']",
+        "message": "queryRawUnsafe запрещён — риск SQL-инъекции (docs/06-security-privacy.md, T12)"
+      },
+      {
+        "selector": "JSXAttribute[name.name='dangerouslySetInnerHTML']",
+        "message": "dangerouslySetInnerHTML запрещён — риск XSS (docs/06-security-privacy.md, T6)"
+      }
+    ],
+
+    "boundaries/no-unknown": "off",
+    "boundaries/no-unknown-files": "off",
+    "boundaries/element-types": [
+      "error",
+      {
+        "default": "disallow",
+        "message": "Нарушено правило зависимостей: app/components → server → domain, adapters → ports (docs/02-architecture.md)",
+        "rules": [
+          {
+            "from": "domain",
+            "allow": ["domain", "lib"]
+          },
+          {
+            "from": "ports",
+            "allow": ["ports", "domain", "lib"]
+          },
+          {
+            "from": "adapters",
+            "allow": ["adapters", "ports", "domain", "lib"]
+          },
+          {
+            "from": "server",
+            "allow": ["server", "ports", "domain", "adapters", "lib", "locales"]
+          },
+          {
+            "from": "components",
+            "allow": ["components", "server", "domain", "lib", "locales"]
+          },
+          {
+            "from": "app",
+            "allow": ["app", "components", "server", "ports", "domain", "adapters", "lib", "locales"]
+          },
+          {
+            "from": "lib",
+            "allow": ["lib"]
+          },
+          {
+            "from": "locales",
+            "allow": ["locales"]
+          }
+        ]
+      }
+    ]
+  },
+  "overrides": [
+    {
+      "files": ["src/domain/**/*.ts"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "patterns": [
+              {
+                "group": ["@prisma/client", "next", "next/*", "react", "react-dom", "@/server/*", "@/adapters/*"],
+                "message": "domain/ не импортирует инфраструктуру. Домен обязан тестироваться без БД и без браузера (docs/02-architecture.md)"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "files": ["src/components/**/*.tsx", "src/components/**/*.ts"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "patterns": [
+              {
+                "group": ["@prisma/client", "@/server/repositories/*"],
+                "message": "Компоненты не обращаются к БД напрямую — только через server/actions и server/services"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "files": ["**/*.test.ts", "**/*.test.tsx", "prisma/**/*.ts"],
+      "rules": {
+        "boundaries/element-types": "off",
+        "no-restricted-imports": "off"
+      }
+    }
+  ],
+  "ignorePatterns": ["node_modules/", ".next/", "out/", "coverage/", "playwright-report/"]
+}

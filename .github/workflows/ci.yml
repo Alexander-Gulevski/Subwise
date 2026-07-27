@@ -1,0 +1,101 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# Красный CI блокирует merge — docs/07-testing-strategy.md, раздел 8
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: Типы, линт, тесты
+    runs-on: ubuntu-latest
+
+    services:
+      # PostgreSQL, а не SQLite: различия в типах и часовых поясах
+      # пропустят ровно те баги, которые мы ловим
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: subwise
+          POSTGRES_PASSWORD: subwise
+          POSTGRES_DB: subwise_test
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U subwise"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+      redis:
+        image: redis:7-alpine
+        ports: ['6379:6379']
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+
+    env:
+      DATABASE_URL: postgresql://subwise:subwise@localhost:5432/subwise_test
+      REDIS_URL: redis://localhost:6379
+      APP_URL: http://localhost:3000
+      # Тестовые значения. Настоящие секреты живут только в окружении
+      # и никогда в репозитории (docs/06-security-privacy.md, T5)
+      ENCRYPTION_KEY: '0000000000000000000000000000000000000000000000000000000000000000'
+      SESSION_SECRET: '1111111111111111111111111111111111111111111111111111111111111111'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Установка зависимостей
+        run: npm ci
+
+      - name: Генерация клиента Prisma
+        run: npx prisma generate
+
+      - name: Проверка схемы Prisma
+        run: npx prisma validate
+
+      - name: Типы
+        run: npm run typecheck
+
+      - name: Линт (включая границы слоёв)
+        run: npm run lint
+
+      - name: Тесты
+        run: npm run test
+
+  security:
+    name: Безопасность
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Уязвимости в зависимостях
+        run: npm audit --audit-level=high
+
+      - name: Поиск секретов в коде
+        run: |
+          if grep -rniE "(api[_-]?key|secret|password|token)[[:space:]]*[:=][[:space:]]*['\"][^'\"]{16,}" \
+             --include='*.ts' --include='*.tsx' src/ prisma/; then
+            echo "::error::Похоже на секрет в коде. Секреты живут только в переменных окружения"
+            exit 1
+          fi

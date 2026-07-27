@@ -1,0 +1,16 @@
+node_modules
+.next
+.git
+.github
+docs
+.claude
+e2e
+coverage
+playwright-report
+test-results
+*.log
+.env
+.env.local
+.env.*.local
+README.md
+CLAUDE.md

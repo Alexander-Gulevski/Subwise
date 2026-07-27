@@ -1,0 +1,79 @@
+# Единица развёртывания проекта — ADR-0006.
+# Один и тот же файл поднимает окружение локально и на российском VPS.
+#
+#   docker compose up -d
+#
+name: subwise
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: runner
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql://subwise:${POSTGRES_PASSWORD}@postgres:5432/subwise
+      REDIS_URL: redis://redis:6379
+    ports:
+      - '3000:3000'
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # Воркер — отдельный контейнер, а не поток внутри app:
+  # тяжёлая фоновая задача не должна блокировать запросы пользователей.
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: runner
+    command: ['node', 'node_modules/.bin/tsx', 'src/server/jobs/worker.ts']
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql://subwise:${POSTGRES_PASSWORD}@postgres:5432/subwise
+      REDIS_URL: redis://redis:6379
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: subwise
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: subwise
+    ports:
+      - '5432:5432'
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U subwise -d subwise']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    command: ['redis-server', '--appendonly', 'yes']
+    ports:
+      - '6379:6379'
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  redis_data:

@@ -1,0 +1,71 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/**
+ * Токены темы. Светлая и тёмная схемы живут в одном месте,
+ * компоненты используют семантические имена (bg, surface, accent),
+ * а не конкретные цвета.
+ */
+@layer base {
+  :root {
+    --bg: 250 250 250;
+    --surface: 255 255 255;
+    --border: 228 228 231;
+    --fg: 24 24 27;
+    --muted: 113 113 122;
+    --accent: 37 99 235;
+    --accent-fg: 255 255 255;
+    --warn: 217 119 6;
+    --danger: 220 38 38;
+    --success: 22 163 74;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: 9 9 11;
+      --surface: 24 24 27;
+      --border: 39 39 42;
+      --fg: 250 250 250;
+      --muted: 161 161 170;
+      --accent: 96 165 250;
+      --accent-fg: 9 9 11;
+      --warn: 251 191 36;
+      --danger: 248 113 113;
+      --success: 74 222 128;
+    }
+  }
+
+  html {
+    /* NFR-02: уважаем системную настройку уменьшенного движения */
+    scroll-behavior: smooth;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    html {
+      scroll-behavior: auto;
+    }
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+
+  body {
+    @apply bg-bg text-fg antialiased;
+    font-feature-settings: 'tnum' on;
+  }
+
+  /* Фокус виден всегда — требование доступности, не опция */
+  :focus-visible {
+    @apply outline-none ring-2 ring-accent ring-offset-2 ring-offset-bg;
+  }
+
+  /* Табличные цифры: суммы в списке не «прыгают» при разной ширине цифр */
+  .tabular {
+    font-variant-numeric: tabular-nums;
+  }
+}
