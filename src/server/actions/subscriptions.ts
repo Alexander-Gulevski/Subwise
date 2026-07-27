@@ -2,10 +2,11 @@
 
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
-import { SUPPORTED_CURRENCIES } from '@/domain/money';
+import { SUPPORTED_CURRENCIES, type CurrencyCode } from '@/domain/money';
 import { requireSubscriptionQuota, requireUser } from '@/server/auth/guards';
 import { FREE_PLAN_SUBSCRIPTION_LIMIT } from '@/server/plan-limits';
 import { subscriptionService } from '@/server/services/subscription-service';
+import { runAction, type ActionResult } from './result';
 
 /**
  * Точки входа для работы с подписками.
@@ -18,9 +19,9 @@ import { subscriptionService } from '@/server/services/subscription-service';
  *   5. вызов сервиса
  *   6. аудит                ← внутри сервиса
  *
- * Владение здесь обеспечивается конструктивно: сервис и репозиторий
- * принимают userId и фильтруют по нему. Метода «получить по id» без
- * userId в проекте нет — забыть проверку физически негде.
+ * Владение обеспечивается конструктивно: сервис и репозиторий принимают
+ * userId и фильтруют по нему. Метода «получить по id» без userId
+ * в проекте нет — забыть проверку физически негде.
  */
 
 const idSchema = z.object({ id: z.string().min(1) });
@@ -28,12 +29,18 @@ const idSchema = z.object({ id: z.string().min(1) });
 const createSchema = z
   .object({
     serviceId: z.string().min(1).nullish(),
-    customName: z.string().trim().min(1).max(120).nullish(),
+    customName: z
+      .string()
+      .trim()
+      .min(1, 'Введи название сервиса')
+      .max(120, 'Название длиннее 120 символов')
+      .nullish(),
     categoryId: z.string().min(1).nullish(),
-    amountMinor: z.number().int().positive(),
-    currency: z.enum(
-      SUPPORTED_CURRENCIES as unknown as [string, ...string[]],
-    ),
+    amountMinor: z
+      .number({ invalid_type_error: 'Введи сумму' })
+      .int()
+      .positive('Сумма должна быть больше нуля'),
+    currency: z.enum(SUPPORTED_CURRENCIES as unknown as [string, ...string[]]),
     period: z.enum([
       'weekly',
       'monthly',
@@ -43,18 +50,18 @@ const createSchema = z
       'custom',
     ]),
     periodDays: z.number().int().positive().max(3650).nullish(),
-    firstBillingAt: z.coerce.date(),
+    firstBillingAt: z.coerce.date({ invalid_type_error: 'Укажи дату списания' }),
     isTrial: z.boolean().optional(),
     trialEndsAt: z.coerce.date().nullish(),
     paymentLabel: z.string().trim().max(60).nullish(),
-    note: z.string().trim().max(500).nullish(),
+    note: z.string().trim().max(500, 'Заметка длиннее 500 символов').nullish(),
   })
   .refine((data) => data.serviceId || data.customName, {
     message: 'Укажи сервис из каталога или введи название',
     path: ['customName'],
   })
   .refine((data) => data.period !== 'custom' || data.periodDays, {
-    message: 'Для произвольного периода укажи число дней',
+    message: 'Укажи, через сколько дней списывают',
     path: ['periodDays'],
   })
   .refine((data) => !data.isTrial || data.trialEndsAt, {
@@ -62,57 +69,77 @@ const createSchema = z
     path: ['trialEndsAt'],
   });
 
-export async function createSubscriptionAction(input: unknown) {
-  const data = createSchema.parse(input);
-  const user = await requireUser();
+export async function createSubscriptionAction(
+  input: unknown,
+): Promise<ActionResult<{ id: string }>> {
+  return runAction(async () => {
+    const data = createSchema.parse(input);
+    const user = await requireUser();
 
-  await requireSubscriptionQuota(user, FREE_PLAN_SUBSCRIPTION_LIMIT);
+    await requireSubscriptionQuota(user, FREE_PLAN_SUBSCRIPTION_LIMIT);
 
-  const created = await subscriptionService.create(user.id, {
-    ...data,
-    currency: data.currency as (typeof SUPPORTED_CURRENCIES)[number],
+    const created = await subscriptionService.create(user.id, {
+      ...data,
+      currency: data.currency as CurrencyCode,
+    });
+
+    revalidatePath('/app');
+    return { id: created.id };
   });
-
-  revalidatePath('/app');
-  return created;
 }
 
-export async function pauseSubscriptionAction(input: unknown) {
-  const { id } = idSchema.parse(input);
-  const user = await requireUser();
+export async function pauseSubscriptionAction(
+  input: unknown,
+): Promise<ActionResult<{ id: string }>> {
+  return runAction(async () => {
+    const { id } = idSchema.parse(input);
+    const user = await requireUser();
 
-  const result = await subscriptionService.pause(user.id, id);
+    const result = await subscriptionService.pause(user.id, id);
 
-  revalidatePath('/app');
-  return result;
+    revalidatePath('/app');
+    return { id: result.id };
+  });
 }
 
-export async function resumeSubscriptionAction(input: unknown) {
-  const { id } = idSchema.parse(input);
-  const user = await requireUser();
+export async function resumeSubscriptionAction(
+  input: unknown,
+): Promise<ActionResult<{ id: string }>> {
+  return runAction(async () => {
+    const { id } = idSchema.parse(input);
+    const user = await requireUser();
 
-  const result = await subscriptionService.resume(user.id, id);
+    const result = await subscriptionService.resume(user.id, id);
 
-  revalidatePath('/app');
-  return result;
+    revalidatePath('/app');
+    return { id: result.id };
+  });
 }
 
-export async function deleteSubscriptionAction(input: unknown) {
-  const { id } = idSchema.parse(input);
-  const user = await requireUser();
+export async function deleteSubscriptionAction(
+  input: unknown,
+): Promise<ActionResult<{ id: string }>> {
+  return runAction(async () => {
+    const { id } = idSchema.parse(input);
+    const user = await requireUser();
 
-  await subscriptionService.softDelete(user.id, id);
+    await subscriptionService.softDelete(user.id, id);
 
-  revalidatePath('/app');
-  return { ok: true as const };
+    revalidatePath('/app');
+    return { id };
+  });
 }
 
-export async function restoreSubscriptionAction(input: unknown) {
-  const { id } = idSchema.parse(input);
-  const user = await requireUser();
+export async function restoreSubscriptionAction(
+  input: unknown,
+): Promise<ActionResult<{ id: string }>> {
+  return runAction(async () => {
+    const { id } = idSchema.parse(input);
+    const user = await requireUser();
 
-  const result = await subscriptionService.restore(user.id, id);
+    const result = await subscriptionService.restore(user.id, id);
 
-  revalidatePath('/app');
-  return result;
+    revalidatePath('/app');
+    return { id: result.id };
+  });
 }

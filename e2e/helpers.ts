@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import type { Page } from '@playwright/test';
 import { PrismaClient } from '@prisma/client';
 import Redis from 'ioredis';
 
@@ -73,6 +74,31 @@ export async function forceOtpCode(email: string, code: string): Promise<void> {
     // тест сломается громко — это правильное поведение.
     data: { codeHash: createHash('sha256').update(`${email}:${code}`).digest('hex') },
   });
+}
+
+/**
+ * Проходит вход через интерфейс и оставляет страницу на дашборде.
+ *
+ * Именно через интерфейс, а не подстановкой cookie: тест должен
+ * пользоваться приложением так же, как пользователь.
+ */
+export async function loginViaUi(
+  page: Page,
+  email: string,
+  code = '424242',
+): Promise<void> {
+  await resetRateLimits();
+
+  await page.goto('/login');
+  await page.getByLabel('Почта').fill(email);
+  await page.getByRole('button', { name: 'Получить код' }).click();
+  await page.getByLabel('Код из письма').waitFor();
+
+  await forceOtpCode(email, code);
+  await page.getByLabel('Код из письма').fill(code);
+  await page.getByRole('button', { name: 'Войти' }).click();
+
+  await page.waitForURL(/\/app$/);
 }
 
 export async function cleanupUser(email: string): Promise<void> {
