@@ -120,5 +120,12 @@
       }
     }
   ],
-  "ignorePatterns": ["node_modules/", ".next/", "out/", "coverage/", "playwright-report/"]
+  "ignorePatterns": [
+    "node_modules/",
+    ".next/",
+    "out/",
+    "coverage/",
+    "playwright-report/",
+    "next-env.d.ts"
+  ]
 }

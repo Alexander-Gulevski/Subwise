@@ -84,6 +84,7 @@ npm run check
 | [06-security-privacy](docs/06-security-privacy.md) | Модель угроз, 152-ФЗ, красные линии |
 | [07-testing-strategy](docs/07-testing-strategy.md) | Пирамида тестов, обязательные наборы |
 | [08-roadmap](docs/08-roadmap.md) | Этапы M0–M4 |
+| [09-stack](docs/09-stack.md) | Полный стек: версии, роли, чего нет и почему |
 | [glossary](docs/glossary.md) | Термины — используются в коде дословно |
 | [adr/](docs/adr/) | Архитектурные решения с альтернативами |
 

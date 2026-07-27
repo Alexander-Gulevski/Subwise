@@ -32,7 +32,13 @@ export type AuthVerifyResult =
   | { readonly status: 'verified'; readonly identity: VerifiedIdentity }
   | { readonly status: 'invalid' }
   | { readonly status: 'expired' }
-  | { readonly status: 'too_many_attempts' };
+  | { readonly status: 'too_many_attempts' }
+  /**
+   * Провайдер не настроен — например, не задан токен бота.
+   * Отдельный статус нужен, чтобы проблема конфигурации не выглядела
+   * как отказ в доступе и не пряталась за общей 500-й ошибкой.
+   */
+  | { readonly status: 'unavailable' };
 
 export interface AuthProvider {
   readonly id: AuthProviderId;

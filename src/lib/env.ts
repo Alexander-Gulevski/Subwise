@@ -14,6 +14,20 @@ const hex32 = z
   .string()
   .regex(/^[0-9a-f]{64}$/i, 'ожидается 32 байта в hex (64 символа)');
 
+/**
+ * Необязательная переменная.
+ *
+ * Пустая строка приводится к undefined: в .env необязательные переменные
+ * принято оставлять как `KEY=` (см. .env.example), и без этого приведения
+ * Zod считает их заданными и валит проверку `.min()`.
+ */
+function optionalString(minLength = 1) {
+  return z.preprocess(
+    (value) => (value === '' ? undefined : value),
+    z.string().min(minLength).optional(),
+  );
+}
+
 const serverSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   APP_URL: z.string().url(),
@@ -24,29 +38,29 @@ const serverSchema = z.object({
   ENCRYPTION_KEY: hex32,
   SESSION_SECRET: hex32,
 
-  TELEGRAM_BOT_TOKEN: z.string().min(1).optional(),
-  TELEGRAM_BOT_USERNAME: z.string().min(1).optional(),
-  TELEGRAM_WEBHOOK_SECRET: z.string().min(16).optional(),
+  TELEGRAM_BOT_TOKEN: optionalString(),
+  TELEGRAM_BOT_USERNAME: optionalString(),
+  TELEGRAM_WEBHOOK_SECRET: optionalString(16),
 
-  SMTP_HOST: z.string().min(1).optional(),
+  SMTP_HOST: optionalString(),
   SMTP_PORT: z.coerce.number().int().positive().default(587),
-  SMTP_USER: z.string().optional(),
-  SMTP_PASSWORD: z.string().optional(),
-  SMTP_FROM: z.string().optional(),
+  SMTP_USER: optionalString(),
+  SMTP_PASSWORD: optionalString(),
+  SMTP_FROM: optionalString(),
 
-  CRON_SECRET: z.string().min(16).optional(),
+  CRON_SECRET: optionalString(16),
 
-  CBR_RATES_URL: z.string().url().default('https://www.cbr-xml-daily.ru/daily_json.js'),
+  CBR_RATES_URL: z
+    .string()
+    .url()
+    .default('https://www.cbr-xml-daily.ru/daily_json.js'),
 });
 
 export type ServerEnv = z.infer<typeof serverSchema>;
 
-let cached: ServerEnv | null = null;
-
-export function getEnv(): ServerEnv {
-  if (cached) return cached;
-
-  const parsed = serverSchema.safeParse(process.env);
+/** Разбор произвольного источника. Вынесен отдельно, чтобы тестировать без process.env. */
+export function parseEnv(source: Record<string, string | undefined>): ServerEnv {
+  const parsed = serverSchema.safeParse(source);
 
   if (!parsed.success) {
     const issues = parsed.error.issues
@@ -56,6 +70,12 @@ export function getEnv(): ServerEnv {
     throw new Error(`Некорректная конфигурация окружения:\n${issues}`);
   }
 
-  cached = parsed.data;
+  return parsed.data;
+}
+
+let cached: ServerEnv | null = null;
+
+export function getEnv(): ServerEnv {
+  if (!cached) cached = parseEnv(process.env);
   return cached;
 }

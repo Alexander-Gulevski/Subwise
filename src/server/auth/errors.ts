@@ -14,6 +14,7 @@ export type AppErrorCode =
   | 'VALIDATION_FAILED'
   | 'NOT_FOUND'
   | 'RATE_LIMITED'
+  | 'PROVIDER_UNAVAILABLE'
   | 'INTERNAL';
 
 const HTTP_STATUS: Record<AppErrorCode, number> = {
@@ -24,6 +25,7 @@ const HTTP_STATUS: Record<AppErrorCode, number> = {
   VALIDATION_FAILED: 422,
   NOT_FOUND: 404,
   RATE_LIMITED: 429,
+  PROVIDER_UNAVAILABLE: 503,
   INTERNAL: 500,
 };
 

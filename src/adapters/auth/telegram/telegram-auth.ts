@@ -23,6 +23,9 @@ import type {
 /** Данные старше этого срока отклоняются — защита от повторного использования */
 const MAX_AUTH_AGE_SECONDS = 24 * 60 * 60;
 
+/** Небольшой допуск на расхождение часов между Telegram и нашим сервером */
+const CLOCK_SKEW_SECONDS = 60;
+
 const telegramPayloadSchema = z.object({
   id: z.union([z.number(), z.string()]).transform(String),
   first_name: z.string().optional(),
@@ -54,15 +57,21 @@ export class TelegramAuthProvider implements AuthProvider {
     payload: unknown,
     _meta: { ip: string },
   ): Promise<AuthVerifyResult> {
+    const botToken = getEnv().TELEGRAM_BOT_TOKEN;
+
+    // Токен не задан — это ошибка конфигурации, а не отказ в доступе.
+    // Отдельный статус не даёт ей замаскироваться под 500-ю ошибку.
+    if (!botToken) return { status: 'unavailable' };
+
     const parsed = telegramPayloadSchema.safeParse(payload);
     if (!parsed.success) return { status: 'invalid' };
 
     const data = parsed.data;
 
-    if (!verifyTelegramSignature(data)) return { status: 'invalid' };
+    if (!verifyTelegramSignature(data, botToken)) return { status: 'invalid' };
 
     const ageSeconds = Math.floor(Date.now() / 1000) - data.auth_date;
-    if (ageSeconds > MAX_AUTH_AGE_SECONDS || ageSeconds < -60) {
+    if (ageSeconds > MAX_AUTH_AGE_SECONDS || ageSeconds < -CLOCK_SKEW_SECONDS) {
       return { status: 'expired' };
     }
 
@@ -78,19 +87,17 @@ export class TelegramAuthProvider implements AuthProvider {
   }
 }
 
-export function verifyTelegramSignature(payload: TelegramPayload): boolean {
-  const botToken = getEnv().TELEGRAM_BOT_TOKEN;
-  if (!botToken) {
-    throw new Error('TELEGRAM_BOT_TOKEN не задан — вход через Telegram невозможен');
-  }
-
+/**
+ * Проверка подписи. Чистая функция: токен передаётся аргументом,
+ * поэтому её можно тестировать без переменных окружения.
+ */
+export function verifyTelegramSignature(
+  payload: TelegramPayload,
+  botToken: string,
+): boolean {
   const { hash, ...fields } = payload;
 
-  const checkString = Object.entries(fields)
-    .filter(([, value]) => value !== undefined && value !== null)
-    .map(([key, value]) => `${key}=${String(value)}`)
-    .sort()
-    .join('\n');
+  const checkString = buildCheckString(fields);
 
   const secretKey = createHash('sha256').update(botToken).digest();
   const signature = createHmac('sha256', secretKey)
@@ -102,4 +109,15 @@ export function verifyTelegramSignature(payload: TelegramPayload): boolean {
   if (a.length !== b.length) return false;
 
   return timingSafeEqual(a, b);
+}
+
+/** Отсортированные "key=value" через \n — формат, заданный Telegram */
+export function buildCheckString(
+  fields: Record<string, string | number | undefined>,
+): string {
+  return Object.entries(fields)
+    .filter(([, value]) => value !== undefined && value !== null)
+    .map(([key, value]) => `${key}=${String(value)}`)
+    .sort()
+    .join('\n');
 }

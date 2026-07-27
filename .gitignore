@@ -41,6 +41,9 @@ Thumbs.db
 .vscode/*
 !.vscode/extensions.json
 
+# локальный запуск: содержит путь к Node конкретной машины
+.claude/launch.json
+
 # misc
 *.tsbuildinfo
 .turbo/

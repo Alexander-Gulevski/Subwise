@@ -24,6 +24,14 @@ export async function POST(request: Request) {
     const body = await request.json().catch(() => null);
     const result = await getTelegramProvider().verify(body, { ip });
 
+    if (result.status === 'unavailable') {
+      // Проблема на нашей стороне, а не в данных запроса
+      throw new AppError(
+        'PROVIDER_UNAVAILABLE',
+        'Вход через Telegram сейчас недоступен',
+      );
+    }
+
     if (result.status !== 'verified') {
       // Не уточняем, что именно не так: подпись, срок или формат
       throw new AppError('VALIDATION_FAILED', 'Не удалось подтвердить вход');
