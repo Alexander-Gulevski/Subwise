@@ -38,12 +38,22 @@ export type TelegramPayload = z.infer<typeof telegramPayloadSchema>;
 export class TelegramAuthProvider implements AuthProvider {
   readonly id = 'telegram' as const;
 
-  /** У Telegram нет этапа запроса — виджет сразу возвращает подписанные данные */
-  async challenge(): Promise<AuthChallengeResult> {
+  /**
+   * У Telegram нет этапа запроса — виджет сразу возвращает подписанные
+   * данные. Параметры принимаются, чтобы сигнатура совпадала с портом
+   * AuthProvider и провайдеры были взаимозаменяемы.
+   */
+  async challenge(
+    _identifier: string,
+    _meta: { ip: string },
+  ): Promise<AuthChallengeResult> {
     return { status: 'sent' };
   }
 
-  async verify(payload: unknown): Promise<AuthVerifyResult> {
+  async verify(
+    payload: unknown,
+    _meta: { ip: string },
+  ): Promise<AuthVerifyResult> {
     const parsed = telegramPayloadSchema.safeParse(payload);
     if (!parsed.success) return { status: 'invalid' };
 

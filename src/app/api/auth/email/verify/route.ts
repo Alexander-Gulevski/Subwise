@@ -1,10 +1,8 @@
-import { EmailOtpAuthProvider } from '@/adapters/auth/email-otp/email-otp-auth';
+import { resetRateLimit } from '@/lib/rate-limit';
 import { AppError } from '@/server/auth/errors';
-import { resetRateLimit } from '@/server/auth/rate-limit';
 import { fail, getClientIp, ok } from '@/server/http';
 import { signInWithIdentity } from '@/server/services/auth-service';
-
-const provider = new EmailOtpAuthProvider();
+import { getEmailOtpProvider } from '@/server/services/auth-providers';
 
 /** POST /api/auth/email/verify — проверка кода и создание сессии */
 export async function POST(request: Request) {
@@ -12,7 +10,7 @@ export async function POST(request: Request) {
     const body = await request.json().catch(() => null);
     const ip = getClientIp(request);
 
-    const result = await provider.verify(body, { ip });
+    const result = await getEmailOtpProvider().verify(body, { ip });
 
     switch (result.status) {
       case 'verified': {

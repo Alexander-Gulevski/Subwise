@@ -1,6 +1,6 @@
 import { cookies } from 'next/headers';
 import { db } from '@/server/db';
-import { generateSessionToken, hashToken } from './crypto';
+import { generateSessionToken, hashToken } from '@/lib/crypto';
 
 /**
  * Сессии — ADR-0003.

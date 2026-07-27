@@ -1,17 +1,12 @@
 import { z } from 'zod';
-import { db } from '@/server/db';
-import {
-  generateOtpCode,
-  hashOtp,
-  safeEqual,
-} from '@/server/auth/crypto';
-import { checkRateLimit } from '@/server/auth/rate-limit';
+import { generateOtpCode, hashOtp, safeEqual } from '@/lib/crypto';
+import { checkRateLimit } from '@/lib/rate-limit';
 import type {
   AuthChallengeResult,
   AuthProvider,
   AuthVerifyResult,
 } from '@/ports/AuthProvider';
-import { sendOtpEmail } from './mailer';
+import type { OtpMailer, OtpStore } from '@/ports/OtpStore';
 
 /**
  * Вход по одноразовому коду на email — ADR-0003.
@@ -26,6 +21,9 @@ import { sendOtpEmail } from './mailer';
  * ВАЖНО: ответ на запрос кода одинаков независимо от того, существует
  * ли аккаунт. Иначе эндпоинт превращается в проверку существования
  * email (угроза T10).
+ *
+ * Хранилище и отправка писем приходят через порты: адаптер не вправе
+ * обращаться к БД напрямую и должен тестироваться без SMTP.
  */
 
 const OTP_TTL_MS = 10 * 60 * 1000;
@@ -38,6 +36,11 @@ const verifySchema = z.object({
 
 export class EmailOtpAuthProvider implements AuthProvider {
   readonly id = 'email_otp' as const;
+
+  constructor(
+    private readonly store: OtpStore,
+    private readonly mailer: OtpMailer,
+  ) {}
 
   async challenge(
     identifier: string,
@@ -60,16 +63,14 @@ export class EmailOtpAuthProvider implements AuthProvider {
 
     const code = generateOtpCode();
 
-    await db.emailOtp.create({
-      data: {
-        email,
-        codeHash: hashOtp(code, email),
-        expiresAt: new Date(Date.now() + OTP_TTL_MS),
-      },
-    });
+    await this.store.issue(
+      email,
+      hashOtp(code, email),
+      new Date(Date.now() + OTP_TTL_MS),
+    );
 
     // Код уходит только в письмо. Логировать его запрещено (T11).
-    await sendOtpEmail(email, code);
+    await this.mailer.send(email, code);
 
     return { status: 'sent' };
   }
@@ -83,32 +84,18 @@ export class EmailOtpAuthProvider implements AuthProvider {
     const byIp = await checkRateLimit('authVerify', `ip:${meta.ip}`);
     if (!byIp.allowed) return { status: 'too_many_attempts' };
 
-    const otp = await db.emailOtp.findFirst({
-      where: { email, usedAt: null },
-      orderBy: { createdAt: 'desc' },
-    });
-
+    const otp = await this.store.findLatestActive(email);
     if (!otp) return { status: 'invalid' };
 
     if (otp.attempts >= MAX_ATTEMPTS) return { status: 'too_many_attempts' };
-
     if (otp.expiresAt.getTime() <= Date.now()) return { status: 'expired' };
 
-    const expected = hashOtp(parsed.data.code, email);
-
-    if (!safeEqual(otp.codeHash, expected)) {
-      await db.emailOtp.update({
-        where: { id: otp.id },
-        data: { attempts: { increment: 1 } },
-      });
+    if (!safeEqual(otp.codeHash, hashOtp(parsed.data.code, email))) {
+      await this.store.incrementAttempts(otp.id);
       return { status: 'invalid' };
     }
 
-    // Код одноразовый: гасим его и все остальные активные для этого адреса
-    await db.emailOtp.updateMany({
-      where: { email, usedAt: null },
-      data: { usedAt: new Date() },
-    });
+    await this.store.consumeAll(email);
 
     return {
       status: 'verified',

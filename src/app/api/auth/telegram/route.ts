@@ -1,10 +1,8 @@
-import { TelegramAuthProvider } from '@/adapters/auth/telegram/telegram-auth';
+import { checkRateLimit } from '@/lib/rate-limit';
 import { AppError } from '@/server/auth/errors';
-import { checkRateLimit } from '@/server/auth/rate-limit';
 import { fail, getClientIp, ok } from '@/server/http';
 import { signInWithIdentity } from '@/server/services/auth-service';
-
-const provider = new TelegramAuthProvider();
+import { getTelegramProvider } from '@/server/services/auth-providers';
 
 /**
  * POST /api/auth/telegram — вход по данным Telegram Login Widget.
@@ -24,7 +22,7 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json().catch(() => null);
-    const result = await provider.verify(body, { ip });
+    const result = await getTelegramProvider().verify(body, { ip });
 
     if (result.status !== 'verified') {
       // Не уточняем, что именно не так: подпись, срок или формат

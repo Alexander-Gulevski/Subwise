@@ -1,6 +1,6 @@
 import nodemailer from 'nodemailer';
 import { getEnv } from '@/lib/env';
-import { OTP_LENGTH } from '@/server/auth/crypto';
+import type { OtpMailer } from '@/ports/OtpStore';
 
 /**
  * Отправка письма с кодом входа.
@@ -32,42 +32,44 @@ function getTransport(): nodemailer.Transporter | null {
   return transport;
 }
 
-export async function sendOtpEmail(email: string, code: string): Promise<void> {
-  const env = getEnv();
-  const mailer = getTransport();
+export class SmtpOtpMailer implements OtpMailer {
+  async send(email: string, code: string): Promise<void> {
+    const env = getEnv();
+    const mailer = getTransport();
 
-  if (!mailer) {
-    if (env.NODE_ENV === 'production') {
-      throw new Error('SMTP_HOST не задан — отправка кодов входа невозможна');
+    if (!mailer) {
+      if (env.NODE_ENV === 'production') {
+        throw new Error('SMTP_HOST не задан — отправка кодов входа невозможна');
+      }
+      // Только для локальной разработки.
+      console.log(`[dev] Код входа для ${email}: ${code}`);
+      return;
     }
-    // Только для локальной разработки.
-    console.log(`[dev] Код входа для ${email}: ${code}`);
-    return;
-  }
 
-  await mailer.sendMail({
-    from: env.SMTP_FROM ?? 'Отписка <noreply@localhost>',
-    to: email,
-    subject: `${code} — код для входа в Отписку`,
-    text: [
-      `Код для входа: ${code}`,
-      '',
-      'Код действует 10 минут и работает один раз.',
-      'Если это были не вы — просто проигнорируйте письмо.',
-    ].join('\n'),
-    html: `
-      <div style="font-family:system-ui,-apple-system,sans-serif;max-width:420px">
-        <p style="color:#666;margin:0 0 8px">Код для входа в Отписку</p>
-        <p style="font-size:32px;letter-spacing:6px;font-weight:600;margin:0 0 16px">
-          ${escapeHtml(code)}
-        </p>
-        <p style="color:#666;font-size:14px;margin:0">
-          Действует 10 минут, работает один раз.<br>
-          Если это были не вы — просто проигнорируйте письмо.
-        </p>
-      </div>
-    `,
-  });
+    await mailer.sendMail({
+      from: env.SMTP_FROM ?? 'Отписка <noreply@localhost>',
+      to: email,
+      subject: `${code} — код для входа в Отписку`,
+      text: [
+        `Код для входа: ${code}`,
+        '',
+        'Код действует 10 минут и работает один раз.',
+        'Если это были не вы — просто проигнорируйте письмо.',
+      ].join('\n'),
+      html: `
+        <div style="font-family:system-ui,-apple-system,sans-serif;max-width:420px">
+          <p style="color:#666;margin:0 0 8px">Код для входа в Отписку</p>
+          <p style="font-size:32px;letter-spacing:6px;font-weight:600;margin:0 0 16px">
+            ${escapeHtml(code)}
+          </p>
+          <p style="color:#666;font-size:14px;margin:0">
+            Действует 10 минут, работает один раз.<br>
+            Если это были не вы — просто проигнорируйте письмо.
+          </p>
+        </div>
+      `,
+    });
+  }
 }
 
 function escapeHtml(value: string): string {
@@ -84,5 +86,3 @@ function escapeHtml(value: string): string {
     return map[char] ?? char;
   });
 }
-
-export { OTP_LENGTH };

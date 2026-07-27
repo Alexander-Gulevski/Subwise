@@ -1,10 +1,8 @@
 import { z } from 'zod';
-import { EmailOtpAuthProvider } from '@/adapters/auth/email-otp/email-otp-auth';
 import { fail, getClientIp, ok } from '@/server/http';
+import { getEmailOtpProvider } from '@/server/services/auth-providers';
 
 const schema = z.object({ email: z.string().email() });
-
-const provider = new EmailOtpAuthProvider();
 
 /**
  * POST /api/auth/email/request — запрос кода входа.
@@ -23,7 +21,7 @@ export async function POST(request: Request) {
       return ok({ status: 'sent' });
     }
 
-    const result = await provider.challenge(parsed.data.email, {
+    const result = await getEmailOtpProvider().challenge(parsed.data.email, {
       ip: getClientIp(request),
     });
 
