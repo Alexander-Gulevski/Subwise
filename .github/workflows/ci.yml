@@ -80,6 +80,70 @@ jobs:
       - name: Тесты
         run: npm run test
 
+  e2e:
+    name: Сквозные тесты
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: subwise
+          POSTGRES_PASSWORD: subwise
+          POSTGRES_DB: subwise_e2e
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U subwise"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+      redis:
+        image: redis:7-alpine
+        ports: ['6379:6379']
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+
+    env:
+      DATABASE_URL: postgresql://subwise:subwise@localhost:5432/subwise_e2e
+      REDIS_URL: redis://localhost:6379
+      APP_URL: http://localhost:3000
+      ENCRYPTION_KEY: '0000000000000000000000000000000000000000000000000000000000000000'
+      SESSION_SECRET: '1111111111111111111111111111111111111111111111111111111111111111'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - run: npx prisma generate
+
+      - name: Подготовка базы
+        run: npx prisma migrate deploy && npm run db:seed
+
+      - name: Установка браузера
+        run: npx playwright install chromium --with-deps
+
+      # Playwright сам поднимет dev-сервер по webServer из конфига.
+      # Именно dev, а не сборка: в нём жил баг с CSP, ломавший гидрацию
+      - name: Сквозные тесты
+        run: npx playwright test
+
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 7
+
   security:
     name: Безопасность
     runs-on: ubuntu-latest
