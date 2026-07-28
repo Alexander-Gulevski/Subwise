@@ -3,8 +3,8 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
-import { Card } from '@/components/ui/card';
-import { BrushIcon } from '@/components/ui/icons';
+import { Card, CardTitle } from '@/components/ui/card';
+import { BroomIcon } from '@/components/ui/icons';
 import { ServicePicker } from './service-picker';
 import {
   CURRENCY_EXPONENT,
@@ -227,27 +227,29 @@ export function SubscriptionForm({
 
   return (
     <form onSubmit={submit} className="flex flex-col gap-4">
-      {/*
-        Кнопка неактивна, пока форма не тронута: так случайное нажатие
-        на нетронутой форме ничего не делает, а активное состояние само
-        подсказывает, что кнопка вернёт всё назад
-      */}
-      <div className="flex justify-end">
-        <button
-          type="button"
-          onClick={reset}
-          disabled={!isDirty}
-          aria-label={
-            isEdit ? 'Вернуть сохранённые значения' : 'Очистить все поля'
-          }
-          title={isEdit ? 'Вернуть сохранённые значения' : 'Очистить все поля'}
-          className="flex h-tap w-tap items-center justify-center rounded-control text-lg text-muted transition-colors hover:bg-surface-raised hover:text-fg disabled:pointer-events-none disabled:opacity-40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
-        >
-          <BrushIcon />
-        </button>
-      </div>
-
       <Card className="flex flex-col gap-4">
+        <div className="flex items-center justify-between gap-3">
+          <CardTitle>Основное</CardTitle>
+
+          {/*
+            Кнопка неактивна, пока форма не тронута: случайное нажатие
+            на нетронутой форме ничего не делает, а то, что она
+            «загорается» после первой правки, само объясняет её смысл
+          */}
+          <button
+            type="button"
+            onClick={reset}
+            disabled={!isDirty}
+            aria-label={
+              isEdit ? 'Вернуть сохранённые значения' : 'Очистить все поля'
+            }
+            title={isEdit ? 'Вернуть сохранённые значения' : 'Очистить все поля'}
+            className="-mr-2 flex h-tap w-tap shrink-0 items-center justify-center rounded-control text-xl text-muted transition-colors hover:bg-surface-raised hover:text-fg disabled:pointer-events-none disabled:opacity-30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+          >
+            <BroomIcon />
+          </button>
+        </div>
+
         <ServicePicker
           value={name}
           onValueChange={(next) => {

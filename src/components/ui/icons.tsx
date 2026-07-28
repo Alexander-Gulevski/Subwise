@@ -34,8 +34,17 @@ export function PencilIcon({ className }: IconProps) {
   );
 }
 
-/** Кисточка — сброс формы к исходному состоянию */
-export function BrushIcon({ className }: IconProps) {
+/**
+ * Метёлка — сброс формы.
+ *
+ * Читается лучше кисточки: кисть ассоциируется с рисованием,
+ * метла — со «смахнуть всё разом», а это ровно то, что делает кнопка.
+ *
+ * Геометрия построена вокруг диагонали 45°: ручка идёт по ней,
+ * ворс раскрывается трапецией перпендикулярно, поперечная перевязь
+ * не даёт ворсу читаться сплошным пятном на мелком размере.
+ */
+export function BroomIcon({ className }: IconProps) {
   return (
     <svg
       viewBox="0 0 24 24"
@@ -43,16 +52,16 @@ export function BrushIcon({ className }: IconProps) {
       height="1em"
       fill="none"
       stroke="currentColor"
-      strokeWidth={1.8}
+      strokeWidth={1.7}
       strokeLinecap="round"
       strokeLinejoin="round"
       aria-hidden="true"
       focusable="false"
       className={className}
     >
-      <path d="M9.5 14.5 3 21" />
-      <path d="M4 17h4v4" />
-      <path d="M20.5 3.5a2.1 2.1 0 0 0-3 0l-8 8 3 3 8-8a2.1 2.1 0 0 0 0-3Z" />
+      <path d="M19.8 4.2 13.4 10.6" />
+      <path d="M11.8 9.8 5 13l6 6 3.2-6.8z" />
+      <path d="M7.9 11.6 12.4 16.1" />
     </svg>
   );
 }
