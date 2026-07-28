@@ -1,4 +1,6 @@
+import Link from 'next/link';
 import { Monogram, type CategorySlug } from '@/components/ui/monogram';
+import { PencilIcon } from '@/components/ui/icons';
 import { formatMoney, type Money } from '@/domain/money';
 import { cn } from '@/lib/cn';
 
@@ -6,6 +8,11 @@ import { cn } from '@/lib/cn';
  * Строка подписки в списке.
  *
  * Статус передаётся текстом, а не только цветом — требование NFR-02.
+ *
+ * Переход в карточку — по отдельной кнопке, а не по всей строке:
+ * так строка остаётся свободной под будущие быстрые действия
+ * (пауза, «всё верно» из напоминания), и пользователю заранее видно,
+ * что именно произойдёт по нажатию.
  */
 
 const STATUS_LABEL: Record<string, string> = {
@@ -33,6 +40,7 @@ export function SubscriptionRow({
   status,
   category,
   daysUntilCharge,
+  editHref,
   compact = false,
 }: {
   name: string;
@@ -44,6 +52,8 @@ export function SubscriptionRow({
   status: string;
   category: CategorySlug;
   daysUntilCharge: number | null;
+  /** Задан — показывается кнопка перехода в карточку */
+  editHref?: string;
   compact?: boolean;
 }) {
   const needsConversion =
@@ -87,6 +97,18 @@ export function SubscriptionRow({
           <p className="text-xs text-warn">нужен курс</p>
         ) : null}
       </div>
+
+      {editHref ? (
+        <Link
+          href={editHref}
+          // Иконка декоративная, поэтому подпись даёт сама ссылка.
+          // Область нажатия 44×44 при видимой иконке 20px (NFR-02)
+          aria-label={`Изменить: ${name}`}
+          className="flex h-tap w-tap shrink-0 items-center justify-center rounded-control text-lg text-muted transition-colors hover:bg-surface-raised hover:text-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+        >
+          <PencilIcon />
+        </Link>
+      ) : null}
     </div>
   );
 }

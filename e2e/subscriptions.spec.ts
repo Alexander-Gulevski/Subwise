@@ -175,7 +175,7 @@ test.describe('редактирование карточки', () => {
     await page.waitForURL(/\/app$/);
   }
 
-  test('клик по строке открывает карточку с заполненными полями', async ({
+  test('кнопка правки открывает карточку с заполненными полями', async ({
     page,
   }) => {
     const email = uniqueEmail('open-card');
@@ -183,7 +183,7 @@ test.describe('редактирование карточки', () => {
     try {
       await seedOne(page, email);
 
-      await page.getByRole('link', { name: /Кинопоиск, открыть карточку/ }).click();
+      await page.getByRole('link', { name: /Изменить: Кинопоиск/ }).click();
       await expect(page).toHaveURL(/\/app\/subscriptions\/[^/]+$/);
 
       // Значения подставлены, а не пустые — иначе сохранение затрёт данные
@@ -200,7 +200,7 @@ test.describe('редактирование карточки', () => {
 
     try {
       await seedOne(page, email);
-      await page.getByRole('link', { name: /Кинопоиск, открыть карточку/ }).click();
+      await page.getByRole('link', { name: /Изменить: Кинопоиск/ }).click();
 
       await page.getByLabel('Сумма').fill('599');
       await page.getByRole('button', { name: 'Сохранить' }).click();
@@ -219,7 +219,7 @@ test.describe('редактирование карточки', () => {
 
     try {
       await seedOne(page, email);
-      await page.getByRole('link', { name: /Кинопоиск, открыть карточку/ }).click();
+      await page.getByRole('link', { name: /Изменить: Кинопоиск/ }).click();
 
       await page.getByLabel('Сервис').fill('Кинопоиск HD');
       await page.getByRole('button', { name: 'Сохранить' }).click();
@@ -236,7 +236,7 @@ test.describe('редактирование карточки', () => {
 
     try {
       await seedOne(page, email);
-      await page.getByRole('link', { name: /Кинопоиск, открыть карточку/ }).click();
+      await page.getByRole('link', { name: /Изменить: Кинопоиск/ }).click();
 
       await page.getByRole('button', { name: 'Поставить на паузу' }).click();
       await page.waitForURL(/\/app$/);
@@ -257,11 +257,11 @@ test.describe('редактирование карточки', () => {
 
     try {
       await seedOne(page, email);
-      await page.getByRole('link', { name: /Кинопоиск, открыть карточку/ }).click();
+      await page.getByRole('link', { name: /Изменить: Кинопоиск/ }).click();
       await page.getByRole('button', { name: 'Поставить на паузу' }).click();
       await page.waitForURL(/\/app$/);
 
-      await page.getByRole('link', { name: /Кинопоиск, открыть карточку/ }).click();
+      await page.getByRole('link', { name: /Изменить: Кинопоиск/ }).click();
       await page.getByRole('button', { name: 'Возобновить' }).click();
       await page.waitForURL(/\/app$/);
 
@@ -278,7 +278,7 @@ test.describe('редактирование карточки', () => {
 
     try {
       await seedOne(page, email);
-      await page.getByRole('link', { name: /Кинопоиск, открыть карточку/ }).click();
+      await page.getByRole('link', { name: /Изменить: Кинопоиск/ }).click();
 
       await page.getByRole('button', { name: 'Удалить подписку' }).click();
 
@@ -302,7 +302,7 @@ test.describe('редактирование карточки', () => {
     try {
       await seedOne(page, ownerEmail);
       const href = await page
-        .getByRole('link', { name: /Кинопоиск, открыть карточку/ })
+        .getByRole('link', { name: /Изменить: Кинопоиск/ })
         .getAttribute('href');
 
       // Выходим так же, как пользователь — кнопкой в настройках

@@ -49,10 +49,24 @@ export default defineConfig({
   workers: 1,
   reporter: process.env.CI ? 'github' : [['list'], ['html', { open: 'never' }]],
 
+  /**
+   * Дефолтные 5 секунд не переживают холодный старт: dev-сервер Next.js
+   * компилирует каждый маршрут при первом обращении, и это занимает
+   * секунды. Локально флак заметен на первом прогоне после правок,
+   * а в CI сервер холодный ВСЕГДА — там падал бы весь набор.
+   *
+   * Поднимаем пороги, а не отключаем проверки: медленный первый заход
+   * это свойство режима разработки, а не дефект приложения.
+   */
+  expect: { timeout: 15_000 },
+  timeout: 60_000,
+
   use: {
     baseURL,
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
+    actionTimeout: 15_000,
+    navigationTimeout: 30_000,
     locale: 'ru-RU',
     timezoneId: 'Europe/Moscow',
   },
