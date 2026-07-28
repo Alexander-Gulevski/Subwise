@@ -28,11 +28,6 @@ export function add(a: Money, b: Money): Money {
   return { minor: a.minor + b.minor, currency: a.currency };
 }
 
-export function subtract(a: Money, b: Money): Money {
-  assertSameCurrency(a, b);
-  return { minor: a.minor - b.minor, currency: a.currency };
-}
-
 /**
  * Сумма списка. Складывает в минорных единицах, поэтому
  * сумма частей всегда равна целому — без накопления ошибки.

@@ -1,7 +1,6 @@
 import { expect, test } from '@playwright/test';
 import {
   cleanupUser,
-  disconnect,
   forceOtpCode,
   resetRateLimits,
   uniqueEmail,
@@ -27,9 +26,6 @@ test.beforeEach(async () => {
   await resetRateLimits();
 });
 
-test.afterAll(async () => {
-  await disconnect();
-});
 
 test.describe('лендинг', () => {
   test('открывается и ведёт на вход', async ({ page }) => {

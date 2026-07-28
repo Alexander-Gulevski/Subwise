@@ -59,6 +59,3 @@ export type ConvertedMoney = Money & {
   readonly isStale: boolean;
 };
 
-export function isCurrencyCode(value: string): value is CurrencyCode {
-  return (SUPPORTED_CURRENCIES as readonly string[]).includes(value);
-}

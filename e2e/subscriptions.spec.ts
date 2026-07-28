@@ -2,7 +2,6 @@ import { expect, test, type Page } from '@playwright/test';
 import {
   cleanupUser,
   clearExchangeRates,
-  disconnect,
   loginViaUi,
   seedExchangeRate,
   uniqueEmail,
@@ -16,9 +15,6 @@ import {
  * целиком (контр-метрика из docs/00-vision.md).
  */
 
-test.afterAll(async () => {
-  await disconnect();
-});
 
 test.describe('добавление подписки', () => {
   test('кнопка на пустом дашборде ведёт к форме', async ({ page }) => {

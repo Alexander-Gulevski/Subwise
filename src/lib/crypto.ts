@@ -32,7 +32,7 @@ export function hashToken(token: string): string {
 
 // ── Одноразовые коды ─────────────────────────────────────
 
-export const OTP_LENGTH = 6;
+const OTP_LENGTH = 6;
 
 /**
  * Шестизначный код.

@@ -29,23 +29,6 @@ export function CardTitle({
 }
 
 /**
- * Скелетон загрузки — по форме будущего контента, не спиннер по центру
- * (docs/05-ux-flows.md, четыре состояния экрана).
- */
-export function Skeleton({
-  className,
-  ...props
-}: React.HTMLAttributes<HTMLDivElement>) {
-  return (
-    <div
-      aria-hidden
-      className={cn('animate-pulse rounded-chip bg-border', className)}
-      {...props}
-    />
-  );
-}
-
-/**
  * Пустое состояние. Никогда не «Нет данных» — всегда объяснение
  * и следующее действие.
  */

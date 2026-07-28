@@ -29,11 +29,6 @@ export function formatMoney(
   }).format(value);
 }
 
-/** Пересчитанная сумма показывается с «≈» — docs/05-ux-flows.md */
-export function formatConverted(amount: Money, locale = 'ru-RU'): string {
-  return `≈ ${formatMoney(amount, locale)}`;
-}
-
 export function parseMinor(input: string, exponent: number): number | null {
   const normalized = input.replace(/\s/g, '').replace(',', '.');
   if (!/^\d+(\.\d+)?$/.test(normalized)) return null;

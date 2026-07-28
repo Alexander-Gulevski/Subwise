@@ -75,11 +75,6 @@ export async function getCatalog(): Promise<CatalogService[]> {
   return items;
 }
 
-/** Сбрасывает кэш. Нужен тестам и обновлению каталога без перезапуска. */
-export function resetCatalogCache(): void {
-  cache = null;
-}
-
 /**
  * Сервисы для сетки онбординга — FR-01.
  *

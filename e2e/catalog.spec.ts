@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { cleanupUser, disconnect, loginViaUi, uniqueEmail } from './helpers';
+import { cleanupUser, loginViaUi, uniqueEmail } from './helpers';
 
 /**
  * Каталог сервисов — FR-04.
@@ -8,9 +8,6 @@ import { cleanupUser, disconnect, loginViaUi, uniqueEmail } from './helpers';
  * не больше трёх действий, а категория определяется сама.
  */
 
-test.afterAll(async () => {
-  await disconnect();
-});
 
 test.describe('подсказки каталога', () => {
   test('выбор из каталога подставляет сумму и категорию', async ({ page }) => {

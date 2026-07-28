@@ -8,37 +8,22 @@ import { getSessionUser, type SessionUser } from './session';
  *
  *   1. Schema.parse(input)        валидация
  *   2. requireUser()              аутентификация
- *   3. requireOwnership(...)      владение ресурсом   ← пропуск = дыра
+ *   3. владение ресурсом          ← см. ниже
  *   4. requireFeature(...)        тариф
  *   5. вызов сервиса
  *   6. аудит
+ *
+ * Отдельной проверки владения здесь нет намеренно. Она обеспечена
+ * конструктивно: репозиторий принимает userId и фильтрует по нему,
+ * а метода «получить по id» без userId в проекте не существует.
+ * Забыть проверку физически негде, и это надёжнее, чем помнить
+ * про вызов guard-функции.
  */
 
 export async function requireUser(): Promise<SessionUser> {
   const user = await getSessionUser();
   if (!user) throw errors.unauthenticated();
   return user;
-}
-
-/**
- * Проверка владения подпиской.
- *
- * ПРОПУСК ЭТОЙ ПРОВЕРКИ — САМАЯ ОПАСНАЯ ОШИБКА В ПРОЕКТЕ:
- * она открывает доступ к чужим данным.
- *
- * Чужой ресурс даёт NOT_FOUND, а не FORBIDDEN — иначе по коду ответа
- * перебором выясняется, какие идентификаторы существуют (T1).
- */
-export async function requireSubscriptionOwnership(
-  userId: string,
-  subscriptionId: string,
-): Promise<void> {
-  const found = await db.subscription.findFirst({
-    where: { id: subscriptionId, userId, deletedAt: null },
-    select: { id: true },
-  });
-
-  if (!found) throw errors.notFound('Подписка');
 }
 
 /**

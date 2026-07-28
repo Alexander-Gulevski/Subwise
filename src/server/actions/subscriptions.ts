@@ -187,16 +187,7 @@ export async function deleteSubscriptionAction(
   });
 }
 
-export async function restoreSubscriptionAction(
-  input: unknown,
-): Promise<ActionResult<{ id: string }>> {
-  return runAction(async () => {
-    const { id } = idSchema.parse(input);
-    const user = await requireUser();
-
-    const result = await subscriptionService.restore(user.id, id);
-
-    revalidatePath('/app');
-    return { id: result.id };
-  });
-}
+// Действия для восстановления удалённой подписки здесь нет: интерфейса
+// для него пока не существует, а точка входа без вызывающего кода —
+// это непроверенная поверхность без пользы. Сервис subscriptionService
+// .restore готов и покрыт тестами, действие вернётся вместе с UI.

@@ -66,37 +66,3 @@ export function BroomIcon({ className }: IconProps) {
   );
 }
 
-export function PauseIcon({ className }: IconProps) {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      width="1em"
-      height="1em"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={1.8}
-      strokeLinecap="round"
-      aria-hidden="true"
-      focusable="false"
-      className={className}
-    >
-      <path d="M9 5v14M15 5v14" />
-    </svg>
-  );
-}
-
-export function PlayIcon({ className }: IconProps) {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      width="1em"
-      height="1em"
-      fill="currentColor"
-      aria-hidden="true"
-      focusable="false"
-      className={className}
-    >
-      <path d="M7 4.5v15l12-7.5Z" />
-    </svg>
-  );
-}

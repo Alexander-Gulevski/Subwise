@@ -131,7 +131,7 @@ export function addMonthsAnchored(anchor: Date, months: number): Date {
   return target;
 }
 
-export function daysInMonth(year: number, monthIndex: number): number {
+function daysInMonth(year: number, monthIndex: number): number {
   return new Date(Date.UTC(year, monthIndex + 1, 0)).getUTCDate();
 }
 

@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { cleanupUser, disconnect, loginViaUi, uniqueEmail } from './helpers';
+import { cleanupUser, loginViaUi, uniqueEmail } from './helpers';
 
 /**
  * Онбординг — FR-01, docs/05-ux-flows.md.
@@ -10,9 +10,6 @@ import { cleanupUser, disconnect, loginViaUi, uniqueEmail } from './helpers';
  * превращает ввод в узнавание.
  */
 
-test.afterAll(async () => {
-  await disconnect();
-});
 
 test.describe('первый запуск', () => {
   test('новый пользователь попадает в онбординг, а не на пустой дашборд', async ({
