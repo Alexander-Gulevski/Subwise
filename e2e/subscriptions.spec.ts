@@ -1,5 +1,12 @@
 import { expect, test, type Page } from '@playwright/test';
-import { cleanupUser, disconnect, loginViaUi, uniqueEmail } from './helpers';
+import {
+  cleanupUser,
+  clearExchangeRates,
+  disconnect,
+  loginViaUi,
+  seedExchangeRate,
+  uniqueEmail,
+} from './helpers';
 
 /**
  * Добавление подписки — сценарий E2 из docs/07-testing-strategy.md.
@@ -134,15 +141,19 @@ test.describe('добавление подписки', () => {
     }
   });
 
-  test('подписка в валюте не ломает итог и честно помечена', async ({ page }) => {
+  test('подписка в валюте пересчитывается по курсу', async ({ page }) => {
     const email = uniqueEmail('foreign');
 
     try {
+      // Тест сам задаёт курс: полагаться на то, что кто-то сегодня
+      // дёрнул cron-эндпоинт, значит сделать набор недетерминированным
+      await seedExchangeRate('USD', 800_000); // 80 ₽ за доллар
+
       await loginViaUi(page, email);
       await page.goto('/app/subscriptions/new');
 
       await page.getByLabel('Сервис').fill('Spotify');
-      await page.getByLabel('Сумма').fill('10,99');
+      await page.getByLabel('Сумма').fill('10');
       await page.getByLabel('Валюта').selectOption('USD');
       await page.getByLabel('Следующее списание').fill('2026-09-15');
       await page.getByRole('button', { name: 'Сохранить' }).click();
@@ -150,7 +161,37 @@ test.describe('добавление подписки', () => {
       await page.waitForURL(/\/app$/);
 
       await expect(page.getByText('Spotify')).toBeVisible();
-      // Курсов ещё нет: сумму не выдумываем, а честно говорим об этом
+      // Исходная сумма и пересчёт рядом: 10 $ → 800 ₽
+      await expect(page.getByText(/10\s*\$/).first()).toBeVisible();
+      await expect(page.getByText(/≈\s*800\s*₽/)).toBeVisible();
+      await expect(page.getByText(/не хватает курса/)).toBeHidden();
+    } finally {
+      await cleanupUser(email);
+    }
+  });
+
+  test('без курса сумма не выдумывается, а помечается честно', async ({
+    page,
+  }) => {
+    const email = uniqueEmail('no-rate');
+
+    try {
+      await clearExchangeRates('EUR');
+
+      await loginViaUi(page, email);
+      await page.goto('/app/subscriptions/new');
+
+      await page.getByLabel('Сервис').fill('Европейский сервис');
+      await page.getByLabel('Сумма').fill('9');
+      await page.getByLabel('Валюта').selectOption('EUR');
+      await page.getByLabel('Следующее списание').fill('2026-09-15');
+      await page.getByRole('button', { name: 'Сохранить' }).click();
+
+      await page.waitForURL(/\/app$/);
+
+      // Молча занижать итог нельзя: пользователь решит, что подписка
+      // потерялась
+      await expect(page.getByText(/нужен курс/)).toBeVisible();
       await expect(page.getByText(/не хватает курса/)).toBeVisible();
     } finally {
       await cleanupUser(email);

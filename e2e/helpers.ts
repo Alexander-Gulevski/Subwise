@@ -129,6 +129,41 @@ export async function markOnboarded(email: string): Promise<void> {
   });
 }
 
+/**
+ * Курс валюты для теста.
+ *
+ * Тесты не полагаются на то, что курсы кто-то загрузил: они сами
+ * задают нужное состояние. Иначе набор зависел бы от того, дёргали ли
+ * сегодня cron-эндпоинт.
+ */
+export async function seedExchangeRate(
+  currency: string,
+  rateMinor: number,
+  date = todayUtc(),
+): Promise<void> {
+  await db.exchangeRate.upsert({
+    where: { currency_date: { currency, date } },
+    update: { rateMinor },
+    create: { currency, date, rateMinor, source: 'cbr' },
+  });
+}
+
+export async function clearExchangeRates(currency?: string): Promise<void> {
+  if (currency) {
+    await db.exchangeRate.deleteMany({ where: { currency } });
+    return;
+  }
+
+  await db.exchangeRate.deleteMany();
+}
+
+export function todayUtc(): Date {
+  const now = new Date();
+  return new Date(
+    Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()),
+  );
+}
+
 export async function cleanupUser(email: string): Promise<void> {
   await db.emailOtp.deleteMany({ where: { email } });
 
