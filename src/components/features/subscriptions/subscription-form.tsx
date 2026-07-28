@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Card, CardTitle } from '@/components/ui/card';
@@ -9,7 +9,9 @@ import { ServicePicker } from './service-picker';
 import {
   CURRENCY_EXPONENT,
   SUPPORTED_CURRENCIES,
+  currencyForRegion,
   parseMinor,
+  resolveRegion,
   type CurrencyCode,
 } from '@/domain/money';
 import { getDictionary } from '@/locales';
@@ -103,6 +105,39 @@ export function SubscriptionForm({
     initial?.serviceId ?? null,
   );
 
+  /**
+   * Валюта по региону устройства — FR-08.
+   *
+   * Определяется ПОСЛЕ монтирования, а не при рендере: на сервере
+   * часового пояса пользователя нет, и подстановка на этапе рендера
+   * дала бы расхождение разметки при гидрации.
+   *
+   * Регион берётся из часового пояса, а не из GPS: системный запрос
+   * доступа к местоположению ради выбора валюты был бы несоразмерным
+   * (NFR-04) и отпугнул бы половину пользователей.
+   */
+  const [detectedCurrency, setDetectedCurrency] = useState<CurrencyCode | null>(
+    null,
+  );
+  const currencyTouched = useRef(false);
+
+  useEffect(() => {
+    // При правке валюта уже выбрана пользователем — не трогаем
+    if (initial) return;
+
+    const region = resolveRegion({
+      timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+      locale: typeof navigator === 'undefined' ? null : navigator.language,
+    });
+
+    const detected = currencyForRegion(region);
+    setDetectedCurrency(detected);
+
+    if (!currencyTouched.current) setCurrency(detected);
+    // Определяем один раз при монтировании
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const [pending, setPending] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [formError, setFormError] = useState<string | null>(null);
@@ -116,6 +151,9 @@ export function SubscriptionForm({
    */
   const baseline: Omit<SubscriptionFormValues, 'id'> = initial ?? {
     ...BLANK,
+    // Сброс возвращает к валюте региона, а не к жёстко зашитой:
+    // иначе метёлка молча превращала бы тенге в рубли
+    currency: detectedCurrency ?? BLANK.currency,
     firstBillingAt: defaultBillingDate(),
   };
 
@@ -285,7 +323,11 @@ export function SubscriptionForm({
             <select
               id="currency"
               value={currency}
-              onChange={(event) => setCurrency(event.target.value as CurrencyCode)}
+              onChange={(event) => {
+                // Явный выбор пользователя важнее определения по региону
+                currencyTouched.current = true;
+                setCurrency(event.target.value as CurrencyCode);
+              }}
               className={inputClass}
             >
               {SUPPORTED_CURRENCIES.map((code) => (
