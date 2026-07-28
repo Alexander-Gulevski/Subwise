@@ -52,6 +52,7 @@ export default async function SubscriptionPage({
 
   const initial: SubscriptionFormValues = {
     id: subscription.id,
+    serviceId: subscription.serviceId,
     customName: service?.name ?? subscription.customName ?? '',
     amount: toAmountInput(subscription.amountMinor, subscription.currency),
     currency: subscription.currency,

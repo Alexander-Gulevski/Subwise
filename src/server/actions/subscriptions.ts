@@ -97,6 +97,7 @@ export async function createSubscriptionAction(
 const updateSchema = z
   .object({
     id: z.string().min(1),
+    serviceId: z.string().min(1).nullish(),
     customName: z
       .string()
       .trim()

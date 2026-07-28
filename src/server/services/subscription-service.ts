@@ -54,6 +54,7 @@ export type CreateSubscriptionInput = {
  * заметку, не стирая заодно категорию.
  */
 export type UpdateSubscriptionInput = {
+  serviceId?: string | null;
   customName?: string | null;
   categoryId?: string | null;
   amountMinor?: number;
@@ -149,6 +150,7 @@ export const subscriptionService = {
       (input.periodDays !== undefined && input.periodDays !== current.periodDays);
 
     await subscriptionRepository.updateOwned(userId, subscriptionId, {
+      ...(input.serviceId !== undefined ? { serviceId: input.serviceId } : {}),
       ...(input.customName !== undefined ? { customName: input.customName } : {}),
       ...(input.categoryId !== undefined ? { categoryId: input.categoryId } : {}),
       ...(input.amountMinor !== undefined ? { amountMinor: input.amountMinor } : {}),

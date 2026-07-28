@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
-import { Monogram, type CategorySlug } from '@/components/ui/monogram';
+import { ServicePicker } from './service-picker';
 import {
   CURRENCY_EXPONENT,
   SUPPORTED_CURRENCIES,
@@ -12,6 +12,7 @@ import {
   type CurrencyCode,
 } from '@/domain/money';
 import { getDictionary } from '@/locales';
+import type { ServiceSuggestion } from '@/server/actions/catalog';
 import {
   createSubscriptionAction,
   updateSubscriptionAction,
@@ -28,6 +29,8 @@ export type CategoryOption = {
 /** Значения для режима правки. Даты — в формате поля input[type=date] */
 export type SubscriptionFormValues = {
   id: string;
+  /** Заполнен, если подписка привязана к сервису из каталога */
+  serviceId: string | null;
   customName: string;
   amount: string;
   currency: CurrencyCode;
@@ -78,11 +81,46 @@ export function SubscriptionForm({
   const [paymentLabel, setPaymentLabel] = useState(initial?.paymentLabel ?? '');
   const [note, setNote] = useState(initial?.note ?? '');
 
+  /** Заполнен, если сервис выбран из каталога, а не введён руками */
+  const [serviceId, setServiceId] = useState<string | null>(
+    initial?.serviceId ?? null,
+  );
+
   const [pending, setPending] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [formError, setFormError] = useState<string | null>(null);
 
   const selectedCategory = categories.find((item) => item.id === categoryId);
+
+  /**
+   * Подстановка выбранного из каталога сервиса.
+   *
+   * Сумму и период перезаписываем только если пользователь их ещё
+   * не трогал: он мог выбрать сервис после того, как ввёл свой тариф,
+   * и затирать введённое было бы грубо.
+   */
+  function applySuggestion(service: ServiceSuggestion) {
+    setName(service.name);
+    setServiceId(service.id);
+
+    if (service.categoryId) setCategoryId(service.categoryId);
+
+    const plan = service.defaultPlan;
+    if (!plan) return;
+
+    if (amount.trim() === '') {
+      const exponent = CURRENCY_EXPONENT[plan.currency as CurrencyCode] ?? 2;
+      const value = plan.amountMinor / 10 ** exponent;
+      setAmount(
+        Number.isInteger(value)
+          ? String(value)
+          : value.toFixed(exponent).replace('.', ','),
+      );
+      setCurrency(plan.currency as CurrencyCode);
+      setPeriod(plan.period);
+      if (plan.periodDays) setPeriodDays(String(plan.periodDays));
+    }
+  }
 
   async function submit(event: React.FormEvent) {
     event.preventDefault();
@@ -99,6 +137,9 @@ export function SubscriptionForm({
     }
 
     const payload = {
+      serviceId,
+      // Название отправляем всегда: если сервис потом уберут
+      // из каталога, подписка не превратится в безымянную
       customName: name,
       categoryId: categoryId || null,
       amountMinor,
@@ -129,23 +170,23 @@ export function SubscriptionForm({
   return (
     <form onSubmit={submit} className="flex flex-col gap-4">
       <Card className="flex flex-col gap-4">
-        <Field label="Сервис" htmlFor="name" error={fieldErrors['customName']}>
-          <div className="flex items-center gap-3">
-            <Monogram
-              name={name || '?'}
-              category={(selectedCategory?.slug as CategorySlug) ?? 'other'}
-              size="md"
-            />
-            <input
-              id="name"
-              required
-              value={name}
-              onChange={(event) => setName(event.target.value)}
-              placeholder="Кинопоиск"
-              className={inputClass}
-            />
-          </div>
-        </Field>
+        <ServicePicker
+          value={name}
+          onValueChange={(next) => {
+            setName(next);
+            // Название изменили вручную — связь с каталогом больше
+            // не действительна, иначе сохранили бы чужой serviceId
+            setServiceId(null);
+          }}
+          onSelect={applySuggestion}
+          onCategoryGuess={(guessedId) => {
+            // Не перебиваем выбор пользователя: подставляем только
+            // в пустое поле
+            setCategoryId((current) => current || guessedId);
+          }}
+          categorySlug={selectedCategory?.slug ?? null}
+          error={fieldErrors['customName']}
+        />
 
         <div className="grid grid-cols-[1fr_auto] gap-3">
           <Field label="Сумма" htmlFor="amount" error={fieldErrors['amountMinor']}>
