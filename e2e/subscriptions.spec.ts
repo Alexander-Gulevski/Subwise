@@ -158,6 +158,77 @@ test.describe('добавление подписки', () => {
   });
 });
 
+test.describe('сброс формы', () => {
+  test('кисточка неактивна на нетронутой форме', async ({ page }) => {
+    const email = uniqueEmail('reset-clean');
+
+    try {
+      await loginViaUi(page, email);
+      await page.goto('/app/subscriptions/new');
+
+      await expect(
+        page.getByRole('button', { name: 'Очистить все поля' }),
+      ).toBeDisabled();
+    } finally {
+      await cleanupUser(email);
+    }
+  });
+
+  test('кисточка очищает все поля при создании', async ({ page }) => {
+    const email = uniqueEmail('reset-create');
+
+    try {
+      await loginViaUi(page, email);
+      await page.goto('/app/subscriptions/new');
+
+      await page.getByLabel('Сервис').fill('Кинопоиск');
+      await page.getByLabel('Сумма').fill('599');
+      await page.getByLabel('Как часто списывают').selectOption('yearly');
+
+      const brush = page.getByRole('button', { name: 'Очистить все поля' });
+      await expect(brush).toBeEnabled();
+      await brush.click();
+
+      await expect(page.getByLabel('Сервис')).toHaveValue('');
+      await expect(page.getByLabel('Сумма')).toHaveValue('');
+      await expect(page.getByLabel('Как часто списывают')).toHaveValue('monthly');
+      await expect(brush).toBeDisabled();
+    } finally {
+      await cleanupUser(email);
+    }
+  });
+
+  test('на карточке кисточка возвращает сохранённые значения', async ({
+    page,
+  }) => {
+    const email = uniqueEmail('reset-edit');
+
+    try {
+      await loginViaUi(page, email);
+      await page.goto('/app/subscriptions/new');
+      await page.getByLabel('Сервис').fill('Кинопоиск');
+      await page.getByLabel('Сумма').fill('399');
+      await page.getByLabel('Следующее списание').fill('2026-08-31');
+      await page.getByRole('button', { name: 'Сохранить' }).click();
+      await page.waitForURL(/\/app$/);
+
+      await page.getByRole('link', { name: /Изменить: Кинопоиск/ }).click();
+      await page.getByLabel('Сумма').fill('9999');
+
+      // При правке сброс не очищает форму, а откатывает изменения:
+      // очистить карточку существующей подписки пользователь не просил
+      await page
+        .getByRole('button', { name: 'Вернуть сохранённые значения' })
+        .click();
+
+      await expect(page.getByLabel('Сумма')).toHaveValue('399');
+      await expect(page.getByLabel('Сервис')).toHaveValue('Кинопоиск');
+    } finally {
+      await cleanupUser(email);
+    }
+  });
+});
+
 test.describe('редактирование карточки', () => {
   /** Заводит одну подписку и оставляет страницу на дашборде */
   async function seedOne(

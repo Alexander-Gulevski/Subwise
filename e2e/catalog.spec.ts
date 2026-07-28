@@ -42,6 +42,50 @@ test.describe('подсказки каталога', () => {
     }
   });
 
+  test('РЕГРЕССИЯ: смена сервиса подставляет цену нового', async ({ page }) => {
+    const email = uniqueEmail('catalog-reprice');
+
+    try {
+      await loginViaUi(page, email);
+      await page.goto('/app/subscriptions/new');
+
+      await page.getByLabel('Сервис').fill('кинопоиск');
+      await page.getByRole('option', { name: /Кинопоиск/ }).click();
+      await expect(page.getByLabel('Сумма')).toHaveValue('399');
+
+      // Передумали и выбрали другой сервис. Раньше цена оставалась
+      // от первого выбора: логика берегла введённое вручную и заодно
+      // берегла то, что подставила сама
+      await page.getByLabel('Сервис').fill('амедиатека');
+      await page.getByRole('option', { name: /Амедиатека/ }).click();
+
+      await expect(page.getByLabel('Сумма')).toHaveValue('599');
+    } finally {
+      await cleanupUser(email);
+    }
+  });
+
+  test('смена сервиса меняет и валюту с периодом', async ({ page }) => {
+    const email = uniqueEmail('catalog-currency');
+
+    try {
+      await loginViaUi(page, email);
+      await page.goto('/app/subscriptions/new');
+
+      await page.getByLabel('Сервис').fill('кинопоиск');
+      await page.getByRole('option', { name: /Кинопоиск/ }).click();
+      await expect(page.getByLabel('Валюта')).toHaveValue('RUB');
+
+      await page.getByLabel('Сервис').fill('spotify');
+      await page.getByRole('option', { name: /Spotify/ }).click();
+
+      await expect(page.getByLabel('Валюта')).toHaveValue('USD');
+      await expect(page.getByLabel('Сумма')).toHaveValue('11,99');
+    } finally {
+      await cleanupUser(email);
+    }
+  });
+
   test('находит по латинице', async ({ page }) => {
     const email = uniqueEmail('catalog-latin');
 

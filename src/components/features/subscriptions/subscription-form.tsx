@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
+import { BrushIcon } from '@/components/ui/icons';
 import { ServicePicker } from './service-picker';
 import {
   CURRENCY_EXPONENT,
@@ -56,6 +57,22 @@ const PERIODS = [
 const inputClass =
   'min-h-tap w-full rounded-control border border-border bg-surface px-3 text-base';
 
+/** Пустая форма — состояние, к которому возвращает сброс при создании */
+const BLANK: Omit<SubscriptionFormValues, 'id'> = {
+  serviceId: null,
+  customName: '',
+  amount: '',
+  currency: 'RUB',
+  period: 'monthly',
+  periodDays: '',
+  firstBillingAt: '',
+  categoryId: '',
+  isTrial: false,
+  trialEndsAt: '',
+  paymentLabel: '',
+  note: '',
+};
+
 export function SubscriptionForm({
   categories,
   initial,
@@ -93,11 +110,52 @@ export function SubscriptionForm({
   const selectedCategory = categories.find((item) => item.id === categoryId);
 
   /**
+   * Состояние, к которому возвращает сброс: пустая форма при создании,
+   * сохранённые значения при правке. Одна механика на оба режима —
+   * «отменить то, что я тут наменял».
+   */
+  const baseline: Omit<SubscriptionFormValues, 'id'> = initial ?? {
+    ...BLANK,
+    firstBillingAt: defaultBillingDate(),
+  };
+
+  const isDirty =
+    name !== baseline.customName ||
+    amount !== baseline.amount ||
+    currency !== baseline.currency ||
+    period !== baseline.period ||
+    periodDays !== baseline.periodDays ||
+    firstBillingAt !== baseline.firstBillingAt ||
+    categoryId !== baseline.categoryId ||
+    isTrial !== baseline.isTrial ||
+    trialEndsAt !== baseline.trialEndsAt ||
+    paymentLabel !== baseline.paymentLabel ||
+    note !== baseline.note;
+
+  function reset() {
+    setName(baseline.customName);
+    setAmount(baseline.amount);
+    setCurrency(baseline.currency);
+    setPeriod(baseline.period);
+    setPeriodDays(baseline.periodDays);
+    setFirstBillingAt(baseline.firstBillingAt);
+    setCategoryId(baseline.categoryId);
+    setIsTrial(baseline.isTrial);
+    setTrialEndsAt(baseline.trialEndsAt);
+    setPaymentLabel(baseline.paymentLabel);
+    setNote(baseline.note);
+    setServiceId(baseline.serviceId);
+    setFieldErrors({});
+    setFormError(null);
+  }
+
+  /**
    * Подстановка выбранного из каталога сервиса.
    *
-   * Сумму и период перезаписываем только если пользователь их ещё
-   * не трогал: он мог выбрать сервис после того, как ввёл свой тариф,
-   * и затирать введённое было бы грубо.
+   * Тариф подставляется ВСЕГДА, даже поверх введённого вручную.
+   * Выбор сервиса из списка — явное действие: пользователь ждёт
+   * цену именно этого сервиса, а не остатки от предыдущего выбора.
+   * Значения остаются редактируемыми, если его тариф отличается.
    */
   function applySuggestion(service: ServiceSuggestion) {
     setName(service.name);
@@ -108,18 +166,18 @@ export function SubscriptionForm({
     const plan = service.defaultPlan;
     if (!plan) return;
 
-    if (amount.trim() === '') {
-      const exponent = CURRENCY_EXPONENT[plan.currency as CurrencyCode] ?? 2;
-      const value = plan.amountMinor / 10 ** exponent;
-      setAmount(
-        Number.isInteger(value)
-          ? String(value)
-          : value.toFixed(exponent).replace('.', ','),
-      );
-      setCurrency(plan.currency as CurrencyCode);
-      setPeriod(plan.period);
-      if (plan.periodDays) setPeriodDays(String(plan.periodDays));
-    }
+    const currencyCode = (plan.currency as CurrencyCode) ?? 'RUB';
+    const exponent = CURRENCY_EXPONENT[currencyCode] ?? 2;
+    const value = plan.amountMinor / 10 ** exponent;
+
+    setAmount(
+      Number.isInteger(value)
+        ? String(value)
+        : value.toFixed(exponent).replace('.', ','),
+    );
+    setCurrency(currencyCode);
+    setPeriod(plan.period);
+    setPeriodDays(plan.periodDays ? String(plan.periodDays) : '');
   }
 
   async function submit(event: React.FormEvent) {
@@ -169,6 +227,26 @@ export function SubscriptionForm({
 
   return (
     <form onSubmit={submit} className="flex flex-col gap-4">
+      {/*
+        Кнопка неактивна, пока форма не тронута: так случайное нажатие
+        на нетронутой форме ничего не делает, а активное состояние само
+        подсказывает, что кнопка вернёт всё назад
+      */}
+      <div className="flex justify-end">
+        <button
+          type="button"
+          onClick={reset}
+          disabled={!isDirty}
+          aria-label={
+            isEdit ? 'Вернуть сохранённые значения' : 'Очистить все поля'
+          }
+          title={isEdit ? 'Вернуть сохранённые значения' : 'Очистить все поля'}
+          className="flex h-tap w-tap items-center justify-center rounded-control text-lg text-muted transition-colors hover:bg-surface-raised hover:text-fg disabled:pointer-events-none disabled:opacity-40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+        >
+          <BrushIcon />
+        </button>
+      </div>
+
       <Card className="flex flex-col gap-4">
         <ServicePicker
           value={name}
