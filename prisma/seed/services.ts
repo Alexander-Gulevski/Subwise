@@ -33,6 +33,31 @@ export type ServiceSeed = {
   plans: ServicePlanSeed[];
 };
 
+/**
+ * Сервисы в сетке онбординга.
+ *
+ * Выбор редакторский: данных о популярности у нас пока нет, а
+ * показывать все 43 сервиса на первом экране — значит утопить
+ * пользователя в выборе. Двенадцать штук с покрытием разных
+ * категорий: человек узнаёт хотя бы половину и отмечает за секунды.
+ *
+ * Порядок важен — он же порядок в сетке.
+ */
+export const popularSlugs = [
+  'yandex-plus',
+  'kinopoisk',
+  'ozon-premium',
+  'sberprime',
+  'vk-music',
+  'okko',
+  'ivi',
+  'yandex-disk',
+  'spotify',
+  'chatgpt-plus',
+  'ps-plus',
+  'litres',
+] as const;
+
 const rub = (
   name: string,
   rubles: number,

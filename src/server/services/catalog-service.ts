@@ -80,6 +80,29 @@ export function resetCatalogCache(): void {
   cache = null;
 }
 
+/**
+ * Сервисы для сетки онбординга — FR-01.
+ *
+ * Сортировка по категории, а не по «популярности»: связанные сервисы
+ * оказываются рядом, и глаз пробегает сетку блоками. Данных
+ * о реальной популярности у нас всё равно нет, а выдуманный порядок
+ * только притворялся бы осмысленным.
+ */
+export async function getPopularServices(): Promise<CatalogService[]> {
+  const catalog = await getCatalog();
+  const popular = await db.service.findMany({
+    where: { isActive: true, isPopular: true },
+    orderBy: [{ category: { name: 'asc' } }, { name: 'asc' }],
+    select: { id: true },
+  });
+
+  const order = new Map(popular.map((item, index) => [item.id, index]));
+
+  return catalog
+    .filter((service) => order.has(service.id))
+    .sort((a, b) => (order.get(a.id) ?? 0) - (order.get(b.id) ?? 0));
+}
+
 export async function searchServices(
   query: string,
   limit = 8,

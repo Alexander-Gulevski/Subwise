@@ -1,7 +1,7 @@
 import { PrismaClient } from '@prisma/client';
 import { categories } from './categories';
 import { featureFlags } from './feature-flags';
-import { services } from './services';
+import { popularSlugs, services } from './services';
 
 /**
  * Сид базы. Идемпотентен — запускается повторно без побочных эффектов.
@@ -58,6 +58,8 @@ async function main() {
       );
     }
 
+    const isPopular = (popularSlugs as readonly string[]).includes(service.slug);
+
     const saved = await db.service.upsert({
       where: { slug: service.slug },
       update: {
@@ -66,6 +68,7 @@ async function main() {
         categoryId,
         websiteUrl: service.websiteUrl ?? null,
         isActive: true,
+        isPopular,
       },
       create: {
         slug: service.slug,
@@ -73,6 +76,7 @@ async function main() {
         aliases: service.aliases,
         categoryId,
         websiteUrl: service.websiteUrl ?? null,
+        isPopular,
       },
       select: { id: true },
     });
@@ -94,9 +98,21 @@ async function main() {
     plansCount += service.plans.length;
   }
 
+  // Опечатка в popularSlugs привела бы к пустой сетке онбординга —
+  // ловим её здесь, а не в проде
+  const knownSlugs = new Set(services.map((service) => service.slug));
+  const unknownPopular = popularSlugs.filter((slug) => !knownSlugs.has(slug));
+
+  if (unknownPopular.length > 0) {
+    throw new Error(
+      `В popularSlugs указаны несуществующие сервисы: ${unknownPopular.join(', ')}`,
+    );
+  }
+
   console.log(
     `Готово: ${categories.length} категорий, ${featureFlags.length} фиче-флагов, ` +
-      `${services.length} сервисов, ${plansCount} тарифов.`,
+      `${services.length} сервисов, ${plansCount} тарифов, ` +
+      `${popularSlugs.length} в сетке онбординга.`,
   );
 }
 

@@ -81,12 +81,20 @@ export async function forceOtpCode(email: string, code: string): Promise<void> {
  *
  * Именно через интерфейс, а не подстановкой cookie: тест должен
  * пользоваться приложением так же, как пользователь.
+ *
+ * По умолчанию онбординг помечается пройденным: новый пользователь
+ * попадает в него автоматически, и без этого каждый тест начинался бы
+ * с прохождения сетки сервисов. Тесты самого онбординга передают
+ * `onboarding: 'keep'`.
  */
 export async function loginViaUi(
   page: Page,
   email: string,
-  code = '424242',
+  options: { code?: string; onboarding?: 'skip' | 'keep' } = {},
 ): Promise<void> {
+  const code = options.code ?? '424242';
+  const onboarding = options.onboarding ?? 'skip';
+
   await resetRateLimits();
 
   await page.goto('/login');
@@ -98,7 +106,27 @@ export async function loginViaUi(
   await page.getByLabel('Код из письма').fill(code);
   await page.getByRole('button', { name: 'Войти' }).click();
 
-  await page.waitForURL(/\/app$/);
+  await page.waitForURL(/\/app(\/onboarding)?$/);
+
+  if (onboarding === 'skip') {
+    await markOnboarded(email);
+    await page.goto('/app');
+  }
+}
+
+/** Помечает онбординг пройденным, минуя интерфейс */
+export async function markOnboarded(email: string): Promise<void> {
+  const identity = await db.authIdentity.findFirst({
+    where: { externalId: email },
+    select: { userId: true },
+  });
+
+  if (!identity) return;
+
+  await db.userSettings.updateMany({
+    where: { userId: identity.userId },
+    data: { onboardedAt: new Date() },
+  });
 }
 
 export async function cleanupUser(email: string): Promise<void> {

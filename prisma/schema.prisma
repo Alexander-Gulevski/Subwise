@@ -115,6 +115,11 @@ model UserSettings {
   quietHoursStart Int @default(22)
   quietHoursEnd   Int @default(9)
 
+  /// Когда пользователь прошёл или пропустил онбординг.
+  /// Без этой отметки пропустивший попадал бы в него снова
+  /// при каждом заходе на пустой дашборд
+  onboardedAt DateTime?
+
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
@@ -134,6 +139,9 @@ model Service {
   websiteUrl String?
   categoryId String?
   isActive   Boolean  @default(true)
+  /// Показывается в сетке онбординга. Выбор редакторский:
+  /// данных о популярности у нас пока нет (FR-01)
+  isPopular  Boolean  @default(false)
 
   category      Category?          @relation(fields: [categoryId], references: [id])
   plans         ServicePlan[]

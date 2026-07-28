@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import { redirect } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Card, CardTitle, EmptyState } from '@/components/ui/card';
 import { SubscriptionRow } from '@/components/features/subscriptions/subscription-row';
@@ -7,6 +8,7 @@ import type { CategorySlug } from '@/components/ui/monogram';
 import { formatMoney } from '@/domain/money';
 import { getDictionary } from '@/locales';
 import { requireUser } from '@/server/auth/guards';
+import { db } from '@/server/db';
 import {
   getDashboard,
   type SubscriptionView,
@@ -27,6 +29,16 @@ export const metadata: Metadata = { title: t.dashboard.title };
  */
 export default async function DashboardPage() {
   const user = await requireUser();
+
+  // Новичка ведём в онбординг: пустой дашборд не объясняет, что делать,
+  // а сетка сервисов превращает первый шаг в узнавание (docs/05-ux-flows)
+  const settings = await db.userSettings.findUnique({
+    where: { userId: user.id },
+    select: { onboardedAt: true },
+  });
+
+  if (!settings?.onboardedAt) redirect('/app/onboarding');
+
   const dashboard = await getDashboard(user.id);
 
   const hasAny =

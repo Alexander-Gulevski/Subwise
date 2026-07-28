@@ -69,7 +69,7 @@ test.describe('вход по коду на почту', () => {
     }
   });
 
-  test('полный путь: почта → код → дашборд', async ({ page }) => {
+  test('полный путь: почта → код → онбординг', async ({ page }) => {
     const email = uniqueEmail('login');
 
     try {
@@ -83,12 +83,12 @@ test.describe('вход по коду на почту', () => {
       await page.getByLabel('Код из письма').fill(TEST_CODE);
       await page.getByRole('button', { name: 'Войти' }).click();
 
-      await expect(page).toHaveURL(/\/app$/);
-      await expect(page.getByRole('heading', { name: 'Обзор' })).toBeVisible();
-
-      // Новый пользователь видит пустое состояние с призывом к действию,
-      // а не «нет данных» (docs/05-ux-flows.md)
-      await expect(page.getByText('Пока пусто')).toBeVisible();
+      // Новый пользователь попадает в онбординг, а не на пустой дашборд:
+      // пустой список не объясняет, что делать дальше (docs/05-ux-flows.md)
+      await expect(page).toHaveURL(/\/app\/onboarding$/);
+      await expect(
+        page.getByRole('heading', { name: 'Чем пользуешься?' }),
+      ).toBeVisible();
     } finally {
       await cleanupUser(email);
     }
