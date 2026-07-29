@@ -1,15 +1,24 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Monogram, type CategorySlug } from '@/components/ui/monogram';
-import { CURRENCY_EXPONENT, formatMoney, money, type CurrencyCode } from '@/domain/money';
+import {
+  CURRENCY_EXPONENT,
+  SUPPORTED_CURRENCIES,
+  currencyForRegion,
+  formatMoney,
+  money,
+  resolveRegion,
+  type CurrencyCode,
+} from '@/domain/money';
 import {
   completeOnboardingAction,
   skipOnboardingAction,
 } from '@/server/actions/onboarding';
+import { seedBaseCurrencyAction } from '@/server/actions/settings';
 
 /**
  * Онбординг — docs/05-ux-flows.md.
@@ -49,6 +58,36 @@ export function OnboardingFlow({ services }: { services: OnboardingService[] }) 
   const [drafts, setDrafts] = useState<Record<string, Draft>>({});
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  /**
+   * Валюта итогов — единственное место, где мы её угадываем.
+   *
+   * Определение по региону не отличает Беларусь от России: обе
+   * в UTC+3, и Windows в Минске нередко стоит на московском времени.
+   * Поэтому здесь оно только ПРЕДЛАГАЕТ значение, а пользователь
+   * может поправить прямо тут же и позже в настройках.
+   *
+   * После монтирования, а не при рендере: на сервере часового пояса
+   * нет, и подстановка на этапе рендера сломала бы гидрацию.
+   */
+  const [baseCurrency, setBaseCurrency] = useState<CurrencyCode>('RUB');
+
+  useEffect(() => {
+    const detected = currencyForRegion(
+      resolveRegion({
+        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+        locale: typeof navigator === 'undefined' ? null : navigator.language,
+      }),
+    );
+
+    setBaseCurrency(detected);
+    void seedBaseCurrencyAction({ baseCurrency: detected });
+  }, []);
+
+  async function changeCurrency(next: CurrencyCode) {
+    setBaseCurrency(next);
+    await seedBaseCurrencyAction({ baseCurrency: next });
+  }
 
   const chosen = services.filter((service) => selected.has(service.id));
 
@@ -216,6 +255,29 @@ export function OnboardingFlow({ services }: { services: OnboardingService[] }) 
           если сервиса нет в списке.
         </p>
       </header>
+
+      {/*
+        Валюта итогов прямо здесь, а не отдельным экраном: одно поле
+        не стоит целого шага. Значение предложено по региону, но
+        угадывание ошибается — например, не отличает Беларусь от России
+      */}
+      <div className="flex items-center gap-3">
+        <label htmlFor="baseCurrency" className="text-sm text-muted">
+          Считать итоги в
+        </label>
+        <select
+          id="baseCurrency"
+          value={baseCurrency}
+          onChange={(event) => changeCurrency(event.target.value as CurrencyCode)}
+          className="min-h-tap rounded-control border border-border bg-surface px-3"
+        >
+          {SUPPORTED_CURRENCIES.map((code) => (
+            <option key={code} value={code}>
+              {code}
+            </option>
+          ))}
+        </select>
+      </div>
 
       <ul className="grid grid-cols-2 gap-2 sm:grid-cols-3">
         {services.map((service) => {

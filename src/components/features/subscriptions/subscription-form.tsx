@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Card, CardTitle } from '@/components/ui/card';
@@ -9,9 +9,7 @@ import { ServicePicker } from './service-picker';
 import {
   CURRENCY_EXPONENT,
   SUPPORTED_CURRENCIES,
-  currencyForRegion,
   parseMinor,
-  resolveRegion,
   type CurrencyCode,
 } from '@/domain/money';
 import { getDictionary } from '@/locales';
@@ -78,17 +76,29 @@ const BLANK: Omit<SubscriptionFormValues, 'id'> = {
 export function SubscriptionForm({
   categories,
   initial,
+  defaultCurrency = 'RUB',
 }: {
   categories: CategoryOption[];
   /** Задан — форма правит существующую подписку, иначе создаёт новую */
   initial?: SubscriptionFormValues;
+  /**
+   * Базовая валюта пользователя из настроек — FR-08.
+   *
+   * Именно настройка, а не результат угадывания на клиенте:
+   * определение по региону не отличает Беларусь от России, обе
+   * в UTC+3. Угадывание предлагает значение один раз, при онбординге,
+   * дальше действует сохранённый выбор.
+   */
+  defaultCurrency?: CurrencyCode;
 }) {
   const router = useRouter();
   const isEdit = Boolean(initial);
 
   const [name, setName] = useState(initial?.customName ?? '');
   const [amount, setAmount] = useState(initial?.amount ?? '');
-  const [currency, setCurrency] = useState<CurrencyCode>(initial?.currency ?? 'RUB');
+  const [currency, setCurrency] = useState<CurrencyCode>(
+    initial?.currency ?? defaultCurrency,
+  );
   const [period, setPeriod] = useState<string>(initial?.period ?? 'monthly');
   const [periodDays, setPeriodDays] = useState(initial?.periodDays ?? '');
   const [firstBillingAt, setFirstBillingAt] = useState(
@@ -105,38 +115,6 @@ export function SubscriptionForm({
     initial?.serviceId ?? null,
   );
 
-  /**
-   * Валюта по региону устройства — FR-08.
-   *
-   * Определяется ПОСЛЕ монтирования, а не при рендере: на сервере
-   * часового пояса пользователя нет, и подстановка на этапе рендера
-   * дала бы расхождение разметки при гидрации.
-   *
-   * Регион берётся из часового пояса, а не из GPS: системный запрос
-   * доступа к местоположению ради выбора валюты был бы несоразмерным
-   * (NFR-04) и отпугнул бы половину пользователей.
-   */
-  const [detectedCurrency, setDetectedCurrency] = useState<CurrencyCode | null>(
-    null,
-  );
-  const currencyTouched = useRef(false);
-
-  useEffect(() => {
-    // При правке валюта уже выбрана пользователем — не трогаем
-    if (initial) return;
-
-    const region = resolveRegion({
-      timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-      locale: typeof navigator === 'undefined' ? null : navigator.language,
-    });
-
-    const detected = currencyForRegion(region);
-    setDetectedCurrency(detected);
-
-    if (!currencyTouched.current) setCurrency(detected);
-    // Определяем один раз при монтировании
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
 
   const [pending, setPending] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
@@ -151,9 +129,9 @@ export function SubscriptionForm({
    */
   const baseline: Omit<SubscriptionFormValues, 'id'> = initial ?? {
     ...BLANK,
-    // Сброс возвращает к валюте региона, а не к жёстко зашитой:
-    // иначе метёлка молча превращала бы тенге в рубли
-    currency: detectedCurrency ?? BLANK.currency,
+    // Сброс возвращает к базовой валюте пользователя, а не к жёстко
+    // зашитой: иначе метёлка молча превращала бы её в рубли
+    currency: defaultCurrency,
     firstBillingAt: defaultBillingDate(),
   };
 
@@ -324,8 +302,6 @@ export function SubscriptionForm({
               id="currency"
               value={currency}
               onChange={(event) => {
-                // Явный выбор пользователя важнее определения по региону
-                currencyTouched.current = true;
                 setCurrency(event.target.value as CurrencyCode);
               }}
               className={inputClass}

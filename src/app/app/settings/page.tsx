@@ -1,6 +1,8 @@
 import type { Metadata } from 'next';
 import { Card, CardTitle } from '@/components/ui/card';
+import { CurrencySetting } from '@/components/features/settings/currency-setting';
 import { LogoutButton } from '@/components/features/auth/logout-button';
+import type { CurrencyCode } from '@/domain/money';
 import { getDictionary } from '@/locales';
 import { requireUser } from '@/server/auth/guards';
 import { db } from '@/server/db';
@@ -57,13 +59,14 @@ export default async function SettingsPage() {
         </ul>
       </Card>
 
-      <Card className="flex flex-col gap-3">
+      <Card className="flex flex-col gap-4">
         <CardTitle>Предпочтения</CardTitle>
+
+        <CurrencySetting
+          value={(settings?.baseCurrency ?? 'RUB') as CurrencyCode}
+        />
+
         <ul className="flex flex-col gap-1 text-sm">
-          <li className="flex justify-between gap-4">
-            <span className="text-muted">{t.settings.baseCurrency}</span>
-            <span>{settings?.baseCurrency ?? 'RUB'}</span>
-          </li>
           <li className="flex justify-between gap-4">
             <span className="text-muted">{t.settings.timezone}</span>
             <span>{settings?.timezone ?? 'Europe/Moscow'}</span>
